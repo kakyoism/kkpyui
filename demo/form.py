@@ -1,5 +1,6 @@
 """
-DEMO: Form-based UI, with builtin support for:
+DEMO: Form-based UI for oneshot action
+with builtin support for:
 - model-view-controller pattern
 - two-pane layout for 2-layer navigation
 - per-entry help text
