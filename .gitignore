@@ -1,3 +1,25 @@
+#==============
+# jetbrains
+#==============
+test/**/observed
+
+#==============
+# jetbrains
+#==============
+*/.idea/*.iml
+*/.idea/misc.xml
+*/.idea/poetry.xml
+*/.idea/workspace.xml
+.idea/inspectionProfiles/Project_Default.xml
+.idea/*.iml
+.idea/misc.xml
+.idea/poetry.xml
+.idea/workspace.xml
+.idea/csv-plugin.xml
+
+#==============
+# python
+#==============
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
