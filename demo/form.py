@@ -1,3 +1,13 @@
+"""
+DEMO: Form-based UI, with builtin support for:
+- model-view-controller pattern
+- two-pane layout for 2-layer navigation
+- per-entry help text
+- per-entry and global resetting to default
+- loading/saving presets
+- progress bar
+- keyboard shortcuts for running and quitting
+"""
 import os.path as osp
 import sys
 import time
