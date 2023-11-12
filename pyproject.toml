@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "kkpyui"
+version = "0.1.0"
+description = "Tkinter-based GUI widget library for building small tool applications"
+authors = ["Beinan Li <li.beinan@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[tool.poetry.dev-dependencies]
+python-osc = "*"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
