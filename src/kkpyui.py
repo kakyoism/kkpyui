@@ -40,6 +40,13 @@ def _validate_number(user_input, new_value, widget_name, data_type):
 
 
 def create_window(title, size=(800, 600)):
+    def _unpin_root(event):
+        """
+        - root may be hidden behind other apps on first run
+        - so we pin it to top first then unpin it
+        """
+        if type(event.widget).__name__ == 'Tk':
+            event.widget.attributes('-topmost', False)
     Globals.root = tk.Tk()
     Globals.root.title(title)
     screen_size = (Globals.root.winfo_screenwidth(), Globals.root.winfo_screenheight())
@@ -51,6 +58,9 @@ def create_window(title, size=(800, 600)):
     )
     Globals.validateIntCmd = (Globals.root.register(_validate_int), '%P', '%S', '%W')
     Globals.validateFloatCmd = (Globals.root.register(_validate_float), '%P', '%S', '%W')
+    Globals.root.attributes('-topmost', True)
+    Globals.root.focus_force()
+    Globals.root.bind('<FocusIn>', _unpin_root)
 
 
 class Prompt:
