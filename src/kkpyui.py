@@ -1,8 +1,6 @@
 import json
-import os.path as osp
 import queue
 import threading
-import time
 import tkinter as tk
 from tkinter import ttk, filedialog
 from tkinter import messagebox as tkmsgbox

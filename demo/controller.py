@@ -1,3 +1,13 @@
+"""
+DEMO: Form-based UI for realtime control
+in addition to features in form.py, with builtin support for:
+- binding custom entry-value tracers
+
+Dependencies with installation instructions:
+- csound
+  - macOS: brew install csound
+  - Windows: winget install csound, or, choco install csound
+"""
 import os.path as osp
 import sys
 import time
