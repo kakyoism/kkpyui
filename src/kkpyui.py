@@ -522,6 +522,9 @@ class OptionEntry(Entry):
         self.index = tk.IntVar(name='index', value=self.get_selection_index())
         self.field.bind("<<ComboboxSelected>>", self.on_combobox_selected)
 
+    def layout(self):
+        self.pack(fill="y", expand=True, padx=5, pady=5, anchor="w")
+
     def on_combobox_selected(self, event):
         new_index = self.get_selection_index()
         self.index.set(new_index)
