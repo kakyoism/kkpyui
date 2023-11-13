@@ -60,7 +60,9 @@ class Root(tk.Tk):
         """
         self.bind("<Return>", controller.submit)
         self.bind("<Escape>", lambda event: controller.cancel(event))
-        self.bind('<Expose>', lambda event: controller.init(event))
+        # Expose: called even when slider is dragged, so we don't use it
+        # Map: triggered when windows is visible
+        self.bind('<Map>', lambda event: controller.init(event))
         self.bind('<Destroy>', lambda event: controller.term(event))
         # bind X button to quit the program
         self.protocol('WM_DELETE_WINDOW', controller.quit)
