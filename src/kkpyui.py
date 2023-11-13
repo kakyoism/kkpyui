@@ -293,7 +293,7 @@ class FormMenu(tk.Menu):
             self.controller.save(preset)
 
     def quit(self):
-        self.controller.cancel(None)
+        self.controller.quit(None)
 
 
 class FormController:
@@ -353,6 +353,12 @@ class FormController:
         raise NotImplementedError('subclass this!')
 
     def cancel(self, event=None):
+        """
+        - override this in app
+        """
+        self.form.master.quit()
+
+    def quit(self, event=None):
         """
         - override this in app
         """

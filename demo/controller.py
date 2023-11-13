@@ -60,6 +60,11 @@ def main():
             time.sleep(1)
             self.playing = False
 
+        def quit(self, event=None):
+            self.cancel()
+            util.kill_process_by_name('csound')
+            super().quit(event)
+
         def on_freq(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
             self.sender.send_message('/frequency', var.get())
