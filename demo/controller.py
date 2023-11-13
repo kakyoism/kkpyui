@@ -100,7 +100,7 @@ def main():
     scpt_entry = ui.TextEntry(page, 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script')
     oscillator_entry = ui.OptionEntry(page, "Oscillator", ['Sine', 'Square', 'Sawtooth',], 'Square', 'Oscillator waveform types')
     freq_entry = ui.IntEntry(page, "Frequency (Hz)", 440, "Frequency of the output signal in Herz", (20, 20000))
-    gain_entry = ui.FloatEntry(page, "Gain (dB)", -6.0, "Gain of the output signal in dB", (-48.0, 0.0), 2, 1.0)
+    gain_entry = ui.FloatEntry(page, "Gain (dB)", -6.0, "Gain of the output signal in dB", (-48.0, 0.0), 2, 5.0)
     oscillator_entry.set_tracer(ctrlr.on_oscillator)
     freq_entry.set_tracer(ctrlr.on_freq)
     gain_entry.set_tracer(ctrlr.on_gain)

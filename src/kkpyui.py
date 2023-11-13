@@ -521,7 +521,7 @@ class IntEntry(Entry):
         # model-binding
         self.data = self._init_data(tk.IntVar)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=1, validate='all', validatecommand=Globals.root.validateIntCmd)
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=10, validate='all', validatecommand=Globals.root.validateIntCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=_update_int_var)
         # Allow slider to expand horizontally
