@@ -352,7 +352,7 @@ class FormController:
         """
         raise NotImplementedError('subclass this!')
 
-    def cancel(self, event):
+    def cancel(self, event=None):
         """
         - override this in app
         """
