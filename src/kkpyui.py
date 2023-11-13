@@ -374,21 +374,21 @@ class FormController:
         - for form-filling case, we quit window on cancelling
         - override this in app
         """
-        self.term()
-        self.form.master.quit()
+        self.quit()
 
     def quit(self, event=None):
         """
         - CAUTION:
-          - usually we do not quit root window here,
-          - we are logical only
-        - override this in app
+          - for sharing binding between menu, x-button, and other ui for quitting
+          - although usually we avoid physical ops in controller
+        - override term() in app
         """
         self.term()
         self.form.master.quit()
 
     def init(self, event=None):
         """
+        - binding of <Expose> event as logical initialization
         - called after mainloop() started, i.e., when window is partially visible
         - controller can start retrieving entries
         - override this in app
@@ -397,6 +397,7 @@ class FormController:
 
     def term(self, event=None):
         """
+        - binding of <Destroy> event as logical termination
         - called AFTER triggering WM_DELETE_WINDOW
         - override this in app
         """
