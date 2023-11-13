@@ -50,17 +50,6 @@ class Root(tk.Tk):
         self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
         self._auto_focus()
 
-    def run(self):
-        self.pre_startup()
-        super().mainloop()
-
-    def pre_startup(self):
-        """
-
-        :return:
-        """
-        pass
-
     def bind_events(self, controller):
         """
         - controller interface, must implement:
@@ -81,7 +70,7 @@ class Root(tk.Tk):
             - root may be hidden behind other apps on first run
             - so we pin it to top first then unpin it
             """
-            if type(event.widget).__name__ == 'Tk':
+            if isinstance(event.widget, tk.Tk):
                 event.widget.attributes('-topmost', False)
         self.attributes('-topmost', True)
         self.focus_force()
