@@ -47,6 +47,8 @@ def main():
             time.sleep(1)
             options = ['Sine', 'Square', 'Sawtooth']
             self.sender.send_message('/oscillator', options.index(self.model['General']['Oscillator']))
+            self.sender.send_message('/frequency', self.model['General']['Frequency (Hz)'])
+            self.sender.send_message('/gain', self.model['General']['Gain (dB)'])
             self.sender.send_message('/play', 1)
             ui.Globals.progressQueue.put(('/start', 0, 'Playing ...'))
             self.playing = True
@@ -56,9 +58,7 @@ def main():
             self.sender.send_message('/play', 0)
             ui.Globals.progressQueue.put(('/stop', 100, 'Stopped'))
             time.sleep(1)
-            util.kill_process_by_name('csound')
             self.playing = False
-            super().cancel(event)
 
         def on_freq(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
