@@ -10,8 +10,6 @@ import kkpyutil as util
 
 class Globals:
     root = None
-    validateIntCmd = None
-    validateFloatCmd = None
     progressQueue = queue.Queue()
 
 
@@ -37,28 +35,57 @@ def _validate_number(user_input, new_value, widget_name, data_type):
     return True
 
 
-def create_window(title, size=(800, 600)):
-    def _unpin_root(event):
+class Root(tk.Tk):
+    def __init__(self, title, size=(800, 600), *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.title(title)
+        screen_size = (self.winfo_screenwidth(), self.winfo_screenheight())
+        self.geometry('{}x{}+{}+{}'.format(
+            size[0],
+            size[1],
+            int(screen_size[0] / 2 - size[0] / 2),
+            int(screen_size[1] / 2 - size[1] / 2))
+        )
+        self.validateIntCmd = (self.register(_validate_int), '%P', '%S', '%W')
+        self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
+        self._auto_focus()
+
+    def run(self):
+        self.pre_startup()
+        super().mainloop()
+
+    def pre_startup(self):
         """
-        - root may be hidden behind other apps on first run
-        - so we pin it to top first then unpin it
+
+        :return:
         """
-        if type(event.widget).__name__ == 'Tk':
-            event.widget.attributes('-topmost', False)
-    Globals.root = tk.Tk()
-    Globals.root.title(title)
-    screen_size = (Globals.root.winfo_screenwidth(), Globals.root.winfo_screenheight())
-    Globals.root.geometry('{}x{}+{}+{}'.format(
-        size[0],
-        size[1],
-        int(screen_size[0] / 2 - size[0] / 2),
-        int(screen_size[1] / 2 - size[1] / 2))
-    )
-    Globals.validateIntCmd = (Globals.root.register(_validate_int), '%P', '%S', '%W')
-    Globals.validateFloatCmd = (Globals.root.register(_validate_float), '%P', '%S', '%W')
-    Globals.root.attributes('-topmost', True)
-    Globals.root.focus_force()
-    Globals.root.bind('<FocusIn>', _unpin_root)
+        pass
+
+    def bind_events(self, controller):
+        """
+        - controller interface, must implement:
+          - ENTER key event: default action
+          - ESC key event: cancel/negate default action
+          - Window X button event: quit
+        - refer to Inter-Client Communication Conventions Manual ICCCM for possible window events
+        """
+        self.bind("<Return>", controller.submit)
+        self.bind("<Escape>", lambda event: controller.cancel(event))
+        self.bind('<Expose>', lambda event: controller.awake(event))
+        # bind X button to quit the program
+        self.protocol('WM_DELETE_WINDOW', controller.quit)
+
+    def _auto_focus(self):
+        def _unpin_root(event):
+            """
+            - root may be hidden behind other apps on first run
+            - so we pin it to top first then unpin it
+            """
+            if type(event.widget).__name__ == 'Tk':
+                event.widget.attributes('-topmost', False)
+        self.attributes('-topmost', True)
+        self.focus_force()
+        self.bind('<FocusIn>', _unpin_root)
 
 
 class Prompt:
@@ -267,16 +294,16 @@ class FormMenu(tk.Menu):
     def __init__(self, master, controller, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         self.fileMenu = tk.Menu(self, tearoff=False)
-        self.fileMenu.add_command(label="Load Preset ...", command=self.load_preset)
-        self.fileMenu.add_command(label="Save Preset ...", command=self.save_preset)
-        self.fileMenu.add_command(label="Exit", command=self.quit)
+        self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
+        self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
+        self.fileMenu.add_command(label="Exit", command=self.on_quit)
         self.add_cascade(label="File", menu=self.fileMenu)
         self.controller = controller
 
     def init(self, window):
         window.configure(menu=self)
 
-    def load_preset(self):
+    def on_load_preset(self):
         preset = filedialog.askopenfilename(title="Load Preset", filetypes=[
             # tkinter openfile dialog filter does not accept middlename,
             # so *.preset.json won't work here
@@ -285,14 +312,14 @@ class FormMenu(tk.Menu):
         if preset:
             self.controller.load(preset)
 
-    def save_preset(self):
+    def on_save_preset(self):
         preset = filedialog.asksaveasfilename(title="Save Preset", filetypes=[
             ("Preset Files", "*.preset.json"),
         ])
         if preset:
             self.controller.save(preset)
 
-    def quit(self):
+    def on_quit(self):
         self.controller.quit(None)
 
 
@@ -364,23 +391,23 @@ class FormController:
         """
         self.form.master.quit()
 
+    def awake(self, event=None):
+        """
+        - called after mainloop() started, i.e., window is visible
+        - controller can start retrieving entries
+        - override this in app
+        """
+        pass
+
 
 class FormActionBar(ttk.Frame):
     def __init__(self, master, controller, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         # action logic
         self.controller = controller
-        # bind the ENTER key to trigger the Submit button
-        root_win = self.controller.form.master
-        root_win.bind("<Return>", self.controller.submit)
-        # bind X button to quit the program
-        root_win.protocol('WM_DELETE_WINDOW', self.controller.cancel)
-        # bind the ESC key to quit the program
-        root_win.bind("<Escape>", lambda event: self.controller.cancel(event))
-
         # occupy the entire width
         # new buttons will be added to the right
-        self.resetBtn = ttk.Button(self, text="Reset", command=self.reset_entries)
+        self.resetBtn = ttk.Button(self, text="Reset", command=self.on_reset_entries)
         self.separator = ttk.Separator(self, orient="horizontal")
         # Create Cancel and Submit buttons
         self.cancelBtn = ttk.Button(self, text="Cancel", command=self.controller.cancel)
@@ -401,7 +428,7 @@ class FormActionBar(ttk.Frame):
         formatted_data = json.dumps(self.controller.model, indent=4)
         tkmsgbox.showinfo("Submitted Data", formatted_data)
 
-    def reset_entries(self, event=None):
+    def on_reset_entries(self, event=None):
         self.controller.reset()
 
 
@@ -488,7 +515,7 @@ class IntEntry(Entry):
         # model-binding
         self.data = self._init_data(tk.IntVar)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=1, validate='all', validatecommand=Globals.validateIntCmd)
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=1, validate='all', validatecommand=Globals.root.validateIntCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=_update_int_var)
         # Allow slider to expand horizontally
@@ -509,7 +536,7 @@ class FloatEntry(Entry):
         self.precision = precision
         self.data = self._init_data(tk.DoubleVar)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, format=f"%.{precision}f", validate='all', validatecommand=Globals.validateFloatCmd)
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, format=f"%.{precision}f", validate='all', validatecommand=Globals.root.validateFloatCmd)
         self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=_update_float_var)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))
         self.slider.grid(row=0, column=1, sticky="ew")
