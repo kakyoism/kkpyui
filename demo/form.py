@@ -39,10 +39,11 @@ class MyController(ui.FormController):
 
 
 def main():
-    ui.create_window('Form Example', (800, 600))
+    ui.Globals.root = ui.Root('Form Example', (800, 600))
     form = ui.Form(ui.Globals.root)
     form.layout()
     ctrlr = MyController(form)
+    ui.Globals.root.bind_events(ctrlr)
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     menu.init(ui.Globals.root)
     # Creating groups
