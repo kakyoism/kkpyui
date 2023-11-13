@@ -224,7 +224,7 @@ class Entry(ttk.Frame):
         # model-binding
         self.data = None
         # title
-        self.label = ttk.Label(self, text=self.text)
+        self.label = ttk.Label(self, text=self.text, cursor='hand2')
         self.label.grid(row=0, column=0, sticky='w')
         self.label.bind("<Double-Button-1>", lambda e: tkmsgbox.showinfo("Help", doc))
         # field
