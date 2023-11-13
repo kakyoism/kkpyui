@@ -38,13 +38,12 @@ def main():
             self.playing = False
 
         def submit(self, event=None):
+            """
+            - assume csound has started
+            """
             if self.playing:
                 return False
             self.update()
-            cmd = ['csound', self.model['General']['Csound Script'], '-odac']
-            util.run_daemon(cmd)
-            # wait for csound to start
-            time.sleep(1)
             options = ['Sine', 'Square', 'Sawtooth']
             self.sender.send_message('/oscillator', options.index(self.model['General']['Oscillator']))
             self.sender.send_message('/frequency', self.model['General']['Frequency (Hz)'])
@@ -57,13 +56,20 @@ def main():
         def cancel(self, event=None):
             self.sender.send_message('/play', 0)
             ui.Globals.progressQueue.put(('/stop', 100, 'Stopped'))
-            time.sleep(1)
+            time.sleep(0.1)
             self.playing = False
 
         def quit(self, event=None):
             self.cancel()
             util.kill_process_by_name('csound')
             super().quit(event)
+
+        def awake(self, event=None):
+            super().awake()
+            self.update()
+            cmd = ['csound', self.model['General']['Csound Script'], '-odac']
+            util.run_daemon(cmd)
+            # time.sleep(0.8)
 
         def on_freq(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
@@ -80,10 +86,11 @@ def main():
             self.sender.send_message('/oscillator', var.get())
             self.sender.send_message('/play', 1)
 
-    ui.create_window('Controller Example', (800, 600))
+    ui.Globals.root = ui.Root('Oscillator Example', (800, 600))
     form = ui.Form(ui.Globals.root)
     form.layout()
     ctrlr = OscillatorController(form)
+    ui.Globals.root.bind_events(ctrlr)
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     menu.init(ui.Globals.root)
     # Creating groups
