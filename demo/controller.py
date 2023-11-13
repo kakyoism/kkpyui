@@ -59,17 +59,16 @@ def main():
             time.sleep(0.1)
             self.playing = False
 
-        def quit(self, event=None):
-            self.cancel()
-            util.kill_process_by_name('csound')
-            super().quit(event)
-
-        def awake(self, event=None):
-            super().awake()
+        def init(self, event=None):
+            super().init()
             self.update()
             cmd = ['csound', self.model['General']['Csound Script'], '-odac']
             util.run_daemon(cmd)
             # time.sleep(0.8)
+
+        def term(self, event=None):
+            self.cancel()
+            util.kill_process_by_name('csound')
 
         def on_freq(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')

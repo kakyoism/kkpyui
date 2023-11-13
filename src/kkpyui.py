@@ -60,7 +60,8 @@ class Root(tk.Tk):
         """
         self.bind("<Return>", controller.submit)
         self.bind("<Escape>", lambda event: controller.cancel(event))
-        self.bind('<Expose>', lambda event: controller.awake(event))
+        self.bind('<Expose>', lambda event: controller.init(event))
+        self.bind('<Destroy>', lambda event: controller.term(event))
         # bind X button to quit the program
         self.protocol('WM_DELETE_WINDOW', controller.quit)
 
@@ -370,20 +371,33 @@ class FormController:
 
     def cancel(self, event=None):
         """
+        - for form-filling case, we quit window on cancelling
         - override this in app
         """
+        self.term()
         self.form.master.quit()
 
     def quit(self, event=None):
         """
+        - CAUTION:
+          - usually we do not quit root window here,
+          - we are logical only
         - override this in app
         """
+        self.term()
         self.form.master.quit()
 
-    def awake(self, event=None):
+    def init(self, event=None):
         """
-        - called after mainloop() started, i.e., window is visible
+        - called after mainloop() started, i.e., when window is partially visible
         - controller can start retrieving entries
+        - override this in app
+        """
+        pass
+
+    def term(self, event=None):
+        """
+        - called AFTER triggering WM_DELETE_WINDOW
         - override this in app
         """
         pass
