@@ -563,6 +563,9 @@ class IntEntry(Entry):
 
 
 class FloatEntry(Entry):
+    """
+    - must NOT inherit from IntEntry to avoid slider malfunction
+    """
     def __init__(self, master: Page, text, default, doc, minmax, step=0.1, precision=2, **kwargs):
         super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
         self.precision = precision
