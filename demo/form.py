@@ -55,7 +55,7 @@ def main():
     pg3.layout()
     # Adding widgets to groups
     integer_widget = ui.IntEntry(pg1, "Integer Value", 10, "This is an integer value.", (0, 100))
-    float_widget = ui.FloatEntry(pg1, "Float Value", 0.5, "This is a float value.", (0.0, 1.0), 4, 0.01)
+    float_widget = ui.FloatEntry(pg1, "Float Value", 0.5, "This is a float value.", (0.0, 1.0), 0.01, 4)
     option_widget = ui.OptionEntry(pg2, "Options", ["Option 1", "Option 2", "Option 3"], "Option 2", "This is an options widget.")
     checkbox_widget = ui.Checkbox(pg2, "Checkbox", True, "This is a checkbox widget.")
     text_widget = ui.TextEntry(pg3, "Text", "Lorem ipsum dolor sit amet", "This is a text widget.")
