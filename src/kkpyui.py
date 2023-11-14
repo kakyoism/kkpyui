@@ -238,6 +238,7 @@ class Entry(ttk.Frame):
 
     def __init__(self, master: Page, text, widget_constructor, default, doc, **widget_kwargs):
         super().__init__(master)
+        self.master.add([self])
         self.text = text
         self.default = default
         # model-binding
@@ -251,8 +252,8 @@ class Entry(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.field.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
         # context menu
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self.context_menu.add_command(label="Reset", command=self._reset)
+        self.contextMenu = tk.Menu(self, tearoff=0)
+        self.contextMenu.add_command(label="Reset", command=self.reset)
         # maximize context-menu hitbox
         self.field.bind("<Button-2>", self.show_context_menu)
         self.label.bind("<Button-2>", self.show_context_menu)
@@ -260,7 +261,7 @@ class Entry(ttk.Frame):
     def _init_data(self, var_cls):
         return var_cls(master=self, name=self.text, value=self.default)
 
-    def _reset(self):
+    def reset(self):
         self.set_data(self.default)
 
     def get_data(self):
@@ -274,9 +275,9 @@ class Entry(ttk.Frame):
 
     def show_context_menu(self, event):
         try:
-            self.context_menu.tk_popup(event.x_root, event.y_root)
+            self.contextMenu.tk_popup(event.x_root, event.y_root)
         finally:
-            self.context_menu.grab_release()
+            self.contextMenu.grab_release()
 
     def set_tracer(self, handler):
         """
@@ -360,7 +361,7 @@ class FormController:
     def reset(self):
         for pg in self.form.pages.values():
             for entry in pg.winfo_children():
-                entry.set_data(entry.default)
+                entry.reset()
 
     def submit(self, event=None):
         """
@@ -541,6 +542,14 @@ class IntEntry(Entry):
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<Button-1>", self.on_scale_clicked)
 
+    def set_data(self, value):
+        self.data.set(value)
+        if hasattr(self, 'ratio'):
+            self._sync_scale_with_spinbox()
+
+    def _sync_scale_with_spinbox(self):
+        self.ratio.set((self.data.get() - self.spinbox['from']) / (self.spinbox['to'] - self.spinbox['from']))
+
     def on_scale_changed(self, ratio):
         new_value = None
         try:
@@ -580,6 +589,14 @@ class FloatEntry(Entry):
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<Button-1>", self.on_scale_clicked)
 
+    def set_data(self, value):
+        self.data.set(value)
+        if hasattr(self, 'ratio'):
+            self._sync_scale_with_spinbox()
+
+    def _sync_scale_with_spinbox(self):
+        self.ratio.set((self.data.get() - self.spinbox['from']) / (self.spinbox['to'] - self.spinbox['from']))
+
     def on_scale_changed(self, ratio):
         try:
             value_range = self.spinbox['to'] - self.spinbox['from']
@@ -598,7 +615,7 @@ class FloatEntry(Entry):
         self.slider.update_idletasks()
 
 
-class OptionEntry(Entry):
+class SingleOptionEntry(Entry):
     """
     - because most clients of optionEntry use its index instead of string value, e.g., csound oscillator waveform is defined by integer among a list of options
     - we must bind to index instead of value for model-binding
@@ -609,12 +626,12 @@ class OptionEntry(Entry):
         self.data = self._init_data(tk.StringVar)
         self.field.configure(textvariable=self.data, state='readonly')
         self.index = tk.IntVar(name='index', value=self.get_selection_index())
-        self.field.bind("<<ComboboxSelected>>", self.on_combobox_selected)
+        self.field.bind("<<ComboboxSelected>>", self.on_option_selected)
 
     def layout(self):
         self.pack(fill="y", expand=True, padx=5, pady=5, anchor="w")
 
-    def on_combobox_selected(self, event):
+    def on_option_selected(self, event):
         new_index = self.get_selection_index()
         self.index.set(new_index)
 
@@ -636,7 +653,54 @@ class OptionEntry(Entry):
         self.index.trace_add('write', callback=lambda name, idx, mode, var=self.index: handler(name, var, idx, mode))
 
 
-class Checkbox(Entry):
+class MultiOptionEntry(Entry):
+    def __init__(self, master: Page, text, options, default, doc, **kwargs):
+        super().__init__(master, text, ttk.Menubutton, default, doc, **kwargs)
+        self.data = {opt: tk.BooleanVar(name=opt, value=opt in default) for opt in options}
+        self.field.configure(text='Select one ore more ...')
+        # build option menu
+        self.selectAll = tk.BooleanVar(name='All', value=True)
+        self.selectNone = tk.BooleanVar(name='None', value=False)
+        self.menu = tk.Menu(self.field, tearoff=False)
+        self.field.configure(menu=self.menu)
+        self._build_options()
+
+    def get_data(self):
+        """
+        - selected subset
+        """
+        return [opt for opt in filter(lambda k: self.data[k].get() == 1, self.data.keys())]
+
+    def set_data(self, values):
+        """
+        - serialized data: selected subset
+        """
+        for opt in self.data:
+            self.data[opt].set(1 if opt in values else 0)
+
+    def _select_all(self):
+        for k, v in self.data.items():
+            v.set(True)
+
+    def _select_none(self):
+        for k, v in self.data.items():
+            v.set(False)
+
+    def set_tracer(self, handler):
+        for opt in self.data:
+            self.data[opt].trace_add('write', callback=lambda name, idx, mode, var=self.data[opt]: handler(name, var, idx, mode))
+
+    def _build_options(self):
+        # keep the order
+        self.menu.add_command(label='- All -',
+                              command=self._select_all)
+        self.menu.add_command(label='- None -',
+                              command=self._select_none)
+        for opt in self.data:
+            self.menu.add_checkbutton(label=opt, variable=self.data[opt], onvalue=True, offvalue=False)
+
+
+class BoolEntry(Entry):
     def __init__(self, master: Page, text, default, doc, **kwargs):
         super().__init__(master, text, ttk.Checkbutton, default, doc, **kwargs)
         self.data = self._init_data(tk.BooleanVar)
