@@ -535,7 +535,8 @@ class IntEntry(Entry):
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateIntCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
-            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", command=self.on_scale_changed)
+            self.ratio = tk.DoubleVar(value=self.data.get() / (minmax[1] - minmax[0]))
+            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
             # Allow slider to expand horizontally
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<Button-1>", self.on_scale_clicked)
@@ -543,30 +544,39 @@ class IntEntry(Entry):
     def on_scale_changed(self, ratio):
         new_value = None
         try:
+            self.ratio.set(ratio)
             value_range = self.spinbox['to'] - self.spinbox['from']
             new_value = int(self.spinbox['from'] + float(ratio) * value_range)
             self.data.set(new_value)
-            # breakpoint()
         except ValueError:
             pass  # Ignore non-integer values
 
     def on_scale_clicked(self, event):
         """
         - must ensure inf is not passed in
+        - update_idletasks() redraws slider and flush all pending events, thus reflects recent changes in its look
+        - otherwise, it may jump b/w left/right ends when clicking
         """
         relative_x = event.x / (scale_width := self.slider.winfo_width())
-        # breakpoint()
         self.on_scale_changed(relative_x)
-        self.slider.set(relative_x)
+        self.slider.update_idletasks()
 
 
-class FloatEntry(IntEntry):
+class FloatEntry(Entry):
     def __init__(self, master: Page, text, default, doc, minmax, step=0.1, precision=2, **kwargs):
-        super().__init__(master, text, default, doc, minmax, step, **kwargs)
-        # model-binding
+        super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
         self.precision = precision
+        # model-binding
+        self.data = self._init_data(tk.IntVar)
         # view
-        self.spinbox.configure(format=f"%.{self.precision}f", validatecommand=Globals.root.validateFloatCmd)
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateFloatCmd)
+        self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
+        if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
+            self.ratio = tk.DoubleVar(value=self.data.get() / (minmax[1] - minmax[0]))
+            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
+            # Allow slider to expand horizontally
+            self.slider.grid(row=0, column=1, sticky="ew")
+            self.slider.bind("<Button-1>", self.on_scale_clicked)
 
     def on_scale_changed(self, ratio):
         try:
@@ -576,6 +586,14 @@ class FloatEntry(IntEntry):
             self.data.set(float(formatted_value))
         except ValueError:
             pass
+
+    def on_scale_clicked(self, event):
+        """
+        - must ensure inf is not passed in
+        """
+        relative_x = event.x / (scale_width := self.slider.winfo_width())
+        self.slider.set(relative_x)
+        self.slider.update_idletasks()
 
 
 class OptionEntry(Entry):
