@@ -523,6 +523,10 @@ class ProgressBar(WaitBar):
 
 
 class IntEntry(Entry):
+    """
+    - show slider for finite numbers only
+    - ttk.Scale is intended for ratio only; the handle does not move for negative numbers
+    """
     def __init__(self, master: Page, text, default, doc, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
         super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
         # model-binding
@@ -530,62 +534,48 @@ class IntEntry(Entry):
         # view
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateIntCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
-        self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=self.on_update_int_var)
-        # Allow slider to expand horizontally
-        self.slider.grid(row=0, column=1, sticky="ew")
-        self.slider.bind("<Button-1>", self.on_click_scale)
+        if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
+            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", command=self.on_scale_changed)
+            # Allow slider to expand horizontally
+            self.slider.grid(row=0, column=1, sticky="ew")
+            self.slider.bind("<Button-1>", self.on_scale_clicked)
 
-    def on_update_int_var(self, value):
+    def on_scale_changed(self, ratio):
+        new_value = None
         try:
-            self.data.set(int(float(value)))  # Convert to integer
+            value_range = self.spinbox['to'] - self.spinbox['from']
+            new_value = int(self.spinbox['from'] + float(ratio) * value_range)
+            self.data.set(new_value)
+            # breakpoint()
         except ValueError:
             pass  # Ignore non-integer values
 
-    def on_click_scale(self, event):
-        if self.slider['from'] == float('-inf') or self.slider['to'] == float('inf'):
-            Globals.root.bell()
-            return
-        # Calculate the relative position of the click on the scale
-        relative_x = event.x / self.slider.winfo_width()
-        value_range = self.slider['to'] - self.slider['from']
-        new_value = self.slider['from'] + (value_range * relative_x)
-        # Set the scale to the new value
-        self.slider.set(new_value)
+    def on_scale_clicked(self, event):
+        """
+        - must ensure inf is not passed in
+        """
+        relative_x = event.x / (scale_width := self.slider.winfo_width())
+        # breakpoint()
+        self.on_scale_changed(relative_x)
+        self.slider.set(relative_x)
 
 
-class FloatEntry(Entry):
-    def __init__(self, master: Page, text, default, doc, minmax, precision, step, **kwargs):
-        super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
+class FloatEntry(IntEntry):
+    def __init__(self, master: Page, text, default, doc, minmax, step=0.1, precision=2, **kwargs):
+        super().__init__(master, text, default, doc, minmax, step, **kwargs)
         # model-binding
         self.precision = precision
-        self.data = self._init_data(tk.DoubleVar)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, format=f"%.{precision}f", validate='all', validatecommand=Globals.root.validateFloatCmd)
-        self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=self.on_update_float_var)
-        self.spinbox.grid(row=0, column=0, padx=(0, 5))
-        self.slider.grid(row=0, column=1, sticky="ew")
-        self.slider.bind("<Button-1>", self.on_click_scale)
+        self.spinbox.configure(format=f"%.{self.precision}f", validatecommand=Globals.root.validateFloatCmd)
 
-    def on_update_float_var(self, value):
+    def on_scale_changed(self, ratio):
         try:
-            formatted_value = "{:.{}f}".format(float(value), self.precision)
+            value_range = self.spinbox['to'] - self.spinbox['from']
+            new_value = self.slider['from'] + float(ratio) * value_range
+            formatted_value = "{:.{}f}".format(float(new_value), self.precision)
             self.data.set(float(formatted_value))
-            print("Updated from on_update_float_var:", formatted_value)
         except ValueError:
             pass
-
-    def on_click_scale(self, event):
-        if self.slider['from'] == float('-inf') or self.slider['to'] == float('inf'):
-            Globals.root.bell()
-            return
-
-        scale_width = self.slider.winfo_width()
-        relative_x = event.x / scale_width
-        value_range = self.slider['to'] - self.slider['from']
-        new_value = self.slider['from'] + (value_range * relative_x)
-
-        print("Clicked at:", event.x, "Scale width:", scale_width, "New value:", new_value)
-        self.data.set(new_value)
 
 
 class OptionEntry(Entry):
