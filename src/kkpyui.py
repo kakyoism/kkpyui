@@ -536,7 +536,7 @@ class IntEntry(Entry):
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateIntCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
-            self.ratio = tk.DoubleVar(value=self.data.get() / (minmax[1] - minmax[0]))
+            self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
             self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<Button-1>", self.on_scale_clicked)
@@ -570,21 +570,20 @@ class FloatEntry(Entry):
         super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
         self.precision = precision
         # model-binding
-        self.data = self._init_data(tk.IntVar)
+        self.data = self._init_data(tk.DoubleVar)
         # view
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateFloatCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
-            self.ratio = tk.DoubleVar(value=self.data.get() / (minmax[1] - minmax[0]))
+            self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
             self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
-            # Allow slider to expand horizontally
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<Button-1>", self.on_scale_clicked)
 
     def on_scale_changed(self, ratio):
         try:
             value_range = self.spinbox['to'] - self.spinbox['from']
-            new_value = self.slider['from'] + float(ratio) * value_range
+            new_value = self.spinbox['from'] + float(ratio) * value_range
             formatted_value = "{:.{}f}".format(float(new_value), self.precision)
             self.data.set(float(formatted_value))
         except ValueError:
