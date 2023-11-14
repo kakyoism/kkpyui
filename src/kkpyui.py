@@ -279,6 +279,13 @@ class Entry(ttk.Frame):
             self.context_menu.grab_release()
 
     def set_tracer(self, handler):
+        """
+        - handler: callback(name, var, index, mode)
+          - name: name of the variable
+          - var: tk.variable object
+          - index: index of the variable
+          - mode: 'read'(triggered when var is read), 'write'(triggered when var is written), 'unset'
+        """
         self.data.trace_add('write', callback=lambda name, index, mode, var=self.data: handler(name, var, index, mode))
 
 
@@ -416,8 +423,8 @@ class FormActionBar(ttk.Frame):
         self.resetBtn = ttk.Button(self, text="Reset", command=self.on_reset_entries)
         self.separator = ttk.Separator(self, orient="horizontal")
         # Create Cancel and Submit buttons
-        self.cancelBtn = ttk.Button(self, text="Cancel", command=self.controller.cancel)
-        self.submitBtn = ttk.Button(self, text="Submit", command=self.controller.submit, cursor='hand2')
+        self.cancelBtn = ttk.Button(self, text="Cancel", command=self.on_cancel)
+        self.submitBtn = ttk.Button(self, text="Submit", command=self.on_submit, cursor='hand2')
         # layout: keep the order
         self.separator.pack(fill="x")
         # left-most must pack after separator to avoid occluding the border
@@ -436,6 +443,12 @@ class FormActionBar(ttk.Frame):
 
     def on_reset_entries(self, event=None):
         self.controller.reset()
+
+    def on_cancel(self, event=None):
+        self.controller.cancel()
+
+    def on_submit(self, event=None):
+        self.controller.submit()
 
 
 class OnOffActionBar(FormActionBar):
@@ -510,42 +523,69 @@ class ProgressBar(WaitBar):
 
 
 class IntEntry(Entry):
-    def __init__(self, master: Page, text, default, doc, minmax, **kwargs):
-        def _update_int_var(value):
-            try:
-                self.data.set(int(float(value)))  # Convert to integer
-            except ValueError:
-                pass  # Ignore non-integer values
-
+    def __init__(self, master: Page, text, default, doc, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
         super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
         # model-binding
         self.data = self._init_data(tk.IntVar)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=10, validate='all', validatecommand=Globals.root.validateIntCmd)
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateIntCmd)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
-        self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=_update_int_var)
+        self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=self.on_update_int_var)
         # Allow slider to expand horizontally
         self.slider.grid(row=0, column=1, sticky="ew")
+        self.slider.bind("<Button-1>", self.on_click_scale)
+
+    def on_update_int_var(self, value):
+        try:
+            self.data.set(int(float(value)))  # Convert to integer
+        except ValueError:
+            pass  # Ignore non-integer values
+
+    def on_click_scale(self, event):
+        if self.slider['from'] == float('-inf') or self.slider['to'] == float('inf'):
+            Globals.root.bell()
+            return
+        # Calculate the relative position of the click on the scale
+        relative_x = event.x / self.slider.winfo_width()
+        value_range = self.slider['to'] - self.slider['from']
+        new_value = self.slider['from'] + (value_range * relative_x)
+        # Set the scale to the new value
+        self.slider.set(new_value)
 
 
 class FloatEntry(Entry):
     def __init__(self, master: Page, text, default, doc, minmax, precision, step, **kwargs):
-        def _update_float_var(value):
-            try:
-                formatted_value = "{:.{}f}".format(float(value), self.precision)  # Format entered value
-                self.data.set(float(formatted_value))
-            except ValueError:
-                pass
-
         super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
         # model-binding
         self.precision = precision
         self.data = self._init_data(tk.DoubleVar)
         # view
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, format=f"%.{precision}f", validate='all', validatecommand=Globals.root.validateFloatCmd)
-        self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=_update_float_var)
+        self.slider = ttk.Scale(self.field, from_=minmax[0], to=minmax[1], orient="horizontal", variable=self.data, command=self.on_update_float_var)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))
         self.slider.grid(row=0, column=1, sticky="ew")
+        self.slider.bind("<Button-1>", self.on_click_scale)
+
+    def on_update_float_var(self, value):
+        try:
+            formatted_value = "{:.{}f}".format(float(value), self.precision)
+            self.data.set(float(formatted_value))
+            print("Updated from on_update_float_var:", formatted_value)
+        except ValueError:
+            pass
+
+    def on_click_scale(self, event):
+        if self.slider['from'] == float('-inf') or self.slider['to'] == float('inf'):
+            Globals.root.bell()
+            return
+
+        scale_width = self.slider.winfo_width()
+        relative_x = event.x / scale_width
+        value_range = self.slider['to'] - self.slider['from']
+        new_value = self.slider['from'] + (value_range * relative_x)
+
+        print("Clicked at:", event.x, "Scale width:", scale_width, "New value:", new_value)
+        self.data.set(new_value)
 
 
 class OptionEntry(Entry):
