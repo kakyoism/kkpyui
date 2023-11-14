@@ -526,6 +526,7 @@ class IntEntry(Entry):
     """
     - show slider for finite numbers only
     - ttk.Scale is intended for ratio only; the handle does not move for negative numbers
+    - must bind a separate variable to the slider to ensure slider-clicking works
     """
     def __init__(self, master: Page, text, default, doc, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
         super().__init__(master, text, ttk.Frame, default, doc, **kwargs)
@@ -537,7 +538,6 @@ class IntEntry(Entry):
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
             self.ratio = tk.DoubleVar(value=self.data.get() / (minmax[1] - minmax[0]))
             self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
-            # Allow slider to expand horizontally
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<Button-1>", self.on_scale_clicked)
 
