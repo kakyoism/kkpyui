@@ -216,7 +216,21 @@ class Form(ttk.PanedWindow):
         self.entryPane.update()
 
     def filter_entries(self, event):
+        """
+        - must preserve entry order when keyword is cleared
+        TODO: optimize rebuilding speed
+        """
         keyword = self.searchEntry.get().strip().lower()
+        if not keyword:
+            for title, pg in self.pages.items():
+                for entry in pg.winfo_children():
+                    entry.pack_forget()
+            # After hiding, update the right pane to reset the initial display
+            for title, pg in self.pages.items():
+                for entry in pg.winfo_children():
+                    entry.layout()
+            self.entryPane.update()
+            return
         for title, pg in self.pages.items():
             for entry in pg.winfo_children():
                 assert isinstance(entry, Entry)
