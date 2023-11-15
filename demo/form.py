@@ -50,6 +50,7 @@ def main():
     name_wgt = ui.TextEntry(pg1, "Name", "Robin Sena", "text widget.")
     age_wgt = ui.IntEntry(pg1, "Age", 15, "integer widget", (0, float('inf')))
     height_wgt = ui.FloatEntry(pg1, "Height (m)", 1.68, "float widget", (0.0, 2.0), 0.01, 2)
+    weight_wgt = ui.FloatEntry(pg1, "Weight (kg)", 51, "float widget", (50.2, 70.3), 0.1, 1)
     gender_wgt = ui.SingleOptionEntry(pg1, "Gender", ["Male", "Female", "[Secret]"], "Female", "option widget")
     protagonist_wgt = ui.BoolEntry(pg1, "Protagonist", True, "checkbox widget")
     bio_widget = ui.TextEntry(pg1, "Bio", """Robin Sena (瀬名 ロビン, Sena Robin) is a soft-spoken 15-year-old Hunter and craft-user with pyrokinetic abilities. She was raised in a convent in Italy-(where she was taught how to use and control her craft in "
