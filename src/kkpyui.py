@@ -172,6 +172,7 @@ class Form(ttk.PanedWindow):
         self.searchEntry = ttk.Entry(search_box)
         self.searchEntry.pack(side="left", fill="x", expand=True)
         self.searchEntry.bind("<KeyRelease>", self.filter_entries)
+        self.searchEntry.bind("<Control-BackSpace>", self._on_clear_search)
         # Place the treeview below the search box
         self.tree = ttk.Treeview(self.navPane, show="tree")
         self.tree.heading("#0", text="", anchor="w")  # Hide the column header
@@ -211,6 +212,12 @@ class Form(ttk.PanedWindow):
         # After hiding, update the right pane to ensure correct display
         self.pages[selected_title].layout() if selected_title else list(self.pages.values())[0].layout()
         self.entryPane.update()
+
+    def _on_clear_search(self, event):
+        if event.state != 4 or event.keysym != 'BackSpace':
+            return
+        self.searchEntry.delete(0, tk.END)
+        self.filter_entries(None)
 
     def filter_entries(self, event):
         """
@@ -263,6 +270,9 @@ class Entry(ttk.Frame):
         self.field = widget_constructor(self, **widget_kwargs)
         self.columnconfigure(0, weight=1)
         self.field.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
+        # # separator
+        # separator = ttk.Separator(self, orient="horizontal")
+        # separator.grid(row=2, column=0, sticky="ew", pady=5)
         # context menu
         self.contextMenu = tk.Menu(self, tearoff=0)
         self.contextMenu.add_command(label="Reset", command=self.reset)
@@ -283,7 +293,7 @@ class Entry(ttk.Frame):
         self.data.set(value)
 
     def layout(self):
-        self.pack(fill="both", expand=True, padx=5, pady=5, anchor="w")
+        self.pack(fill="both", expand=True, padx=5, pady=15, anchor="w")
 
     def show_context_menu(self, event):
         try:
