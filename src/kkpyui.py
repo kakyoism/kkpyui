@@ -316,12 +316,14 @@ class Entry(ttk.Frame):
         self.data = None
         # title
         self.label = ttk.Label(self, text=self.text, cursor='hand2')
-        self.label.grid(row=0, column=0, sticky='w')
+        # self.label.grid(row=0, column=0, sticky='w')
+        self.label.pack(expand=True, padx=5, pady=5, anchor="w")
         self.label.bind("<Double-Button-1>", lambda e: tkmsgbox.showinfo("Help", doc))
         # field
         self.field = widget_constructor(self, **widget_kwargs)
         self.columnconfigure(0, weight=1)
-        self.field.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
+        # self.field.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
+        self.field.pack(expand=True, padx=5, pady=5, anchor="w")
         # context menu
         self.contextMenu = tk.Menu(self, tearoff=0)
         # use context menu instead of direct clicking to avoid accidental reset
@@ -796,6 +798,10 @@ class TextEntry(Entry):
         self.field.bind("<<Modified>>", self._on_text_changed)
         self.data.trace_add("write", self._on_data_changed)
         self.field.insert("1.0", default)
+        # allow paste
+        self.pasteBtn = ttk.Button(self, text="Paste", command=self._on_paste)
+        # self.pasteBtn.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
+        self.pasteBtn.pack(side='bottom', expand=True, padx=5, anchor="w")
 
     def set_data(self, value):
         super().set_data(value)
@@ -822,3 +828,11 @@ class TextEntry(Entry):
             return
         self.data.set(self.field.get("1.0", tk.END))
         self.field.edit_modified(False)
+
+    def _on_paste(self):
+        """
+        - replace entry text with clipboard content
+        """
+        # clear the text field first
+        self.field.delete("1.0", tk.END)
+        self.field.insert(tk.INSERT, self.field.clipboard_get())
