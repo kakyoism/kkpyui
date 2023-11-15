@@ -270,11 +270,9 @@ class Entry(ttk.Frame):
         self.field = widget_constructor(self, **widget_kwargs)
         self.columnconfigure(0, weight=1)
         self.field.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
-        # # separator
-        # separator = ttk.Separator(self, orient="horizontal")
-        # separator.grid(row=2, column=0, sticky="ew", pady=5)
         # context menu
         self.contextMenu = tk.Menu(self, tearoff=0)
+        # use context menu instead of direct clicking to avoid accidental reset
         self.contextMenu.add_command(label="Reset", command=self.reset)
         # maximize context-menu hitbox
         self.field.bind("<Button-2>", self.show_context_menu)
