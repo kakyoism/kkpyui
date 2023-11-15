@@ -154,31 +154,50 @@ class Page(ttk.LabelFrame):
 
 class ScrollFrame(ttk.Frame):
     def __init__(self, master, *args, **kwargs):
+        def _configure_interior(event):
+            """
+            - without this, scrollbar will not be configured properly
+            - because the inner frame initially does not fill the canvas
+            """
+            # Update the scrollbars to match the size of the inner frame.
+            width, height = (self.frame.winfo_reqwidth(),
+                             self.frame.winfo_reqheight())
+            self.canvas.configure(scrollregion=(0, 0, width, height))
+            if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
+                # update the canvas's width to fit the inner frame
+                self.canvas.config(width=self.frame.winfo_reqwidth())
+
+        def _configure_canvas(event):
+            # update the inner frame's width to fill the canvas
+            if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
+                self.canvas.itemconfigure(frame_id, width=self.canvas.winfo_width())
+
         super().__init__(master, *args, **kwargs)
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=scrollbar.set)
 
         self.frame = ttk.Frame(self.canvas)
-        self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
+        frame_id = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
 
-        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        # self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.frame.bind('<Configure>', _configure_interior)
+        self.canvas.bind('<Configure>', _configure_canvas)
 
-        self.scrollbar.pack(side="right", fill="y")
+        scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
 
         self.frame.bind("<Enter>", self._bound_to_mousewheel)
-        self.bind("<Enter>", self._bound_to_mousewheel)
         self.frame.bind("<Leave>", self._unbound_to_mousewheel)
 
     def _on_canvas_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def _mouse_scroll(self, event):
+    def _on_mouse_scroll(self, event):
         self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
 
     def _bound_to_mousewheel(self, event):
-        self.canvas.bind_all("<MouseWheel>", self._mouse_scroll)
+        self.canvas.bind_all("<MouseWheel>", self._on_mouse_scroll)
 
     def _unbound_to_mousewheel(self, event):
         self.canvas.unbind_all("<MouseWheel>")
