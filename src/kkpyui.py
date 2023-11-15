@@ -161,7 +161,7 @@ class Form(ttk.PanedWindow):
     - instantiation: Form > Page (slave to form pane) > Entry (slave to page)
     """
 
-    def __init__(self, master, *args, **kwargs):
+    def __init__(self, master, page_titles: list[str], **kwargs):
         super().__init__(master, orient=tk.HORIZONTAL)
         # Left panel: navigation bar with filtering support
         self.navPane = ttk.Frame(self, width=200)
@@ -182,18 +182,15 @@ class Form(ttk.PanedWindow):
         # build form with navbar and page frame
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
-        self.pages = {}
+        self.pages = {title: Page(self.entryPane, title) for title in page_titles}
+        self.init()
+        self.layout()
 
     def layout(self):
         self.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-    def init(self, pages):
-        """
-        - pages must be created using entryPane as master
-        """
-        pg_titles = [pg.get_title() for pg in pages]
-        self.pages = {title: pg for title, pg in zip(pg_titles, pages)}
-        # Populate tree
+    def init(self):
+        # Populate tree with page titles
         for title, pg in self.pages.items():
             self.tree.insert("", "end", text=title)
         # select first page
@@ -208,7 +205,7 @@ class Form(ttk.PanedWindow):
         selected_item = self.tree.focus()
         # selection will be blank on startup because no item is selected
         selected_title = self.tree.item(selected_item, "text")
-        # Hide all groups
+        # Hide all pages
         for pg in self.pages.values():
             pg.pack_forget()
         # After hiding, update the right pane to ensure correct display
@@ -252,6 +249,7 @@ class Entry(ttk.Frame):
 
     def __init__(self, master: Page, text, widget_constructor, default, doc, **widget_kwargs):
         super().__init__(master)
+        assert isinstance(self.master, Page)
         self.master.add([self])
         self.text = text
         self.default = default
@@ -307,15 +305,14 @@ class Entry(ttk.Frame):
 class FormMenu(tk.Menu):
     def __init__(self, master, controller, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
+        assert isinstance(self.master, tk.Tk)
+        self.master.configure(menu=self)
         self.fileMenu = tk.Menu(self, tearoff=False)
         self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
         self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
         self.fileMenu.add_command(label="Exit", command=self.on_quit)
         self.add_cascade(label="File", menu=self.fileMenu)
         self.controller = controller
-
-    def init(self, window):
-        window.configure(menu=self)
 
     def on_load_preset(self):
         preset = filedialog.askopenfilename(title="Load Preset", filetypes=[
@@ -446,6 +443,7 @@ class FormActionBar(ttk.Frame):
         self.resetBtn.pack(side="left", padx=10, pady=5)
         self.submitBtn.pack(side="right", padx=10, pady=10)
         self.cancelBtn.pack(side="right", padx=10, pady=10)
+        self.layout()
 
     def layout(self):
         self.pack(side="bottom", fill="x")
@@ -487,6 +485,7 @@ class WaitBar(ttk.Frame):
         self.stage = tk.StringVar(name='stage', value='')
         self.bar = ttk.Progressbar(self, orient="horizontal", mode="indeterminate")
         self.label = ttk.Label(self.bar, textvariable=self.stage, text='...', foreground='white', background='black')
+        self.layout()
 
     def layout(self):
         """
@@ -517,6 +516,7 @@ class ProgressBar(WaitBar):
         super().__init__(master, progress_queue, *args, **kwargs)
         self.progress = tk.DoubleVar(name='progress', value=0.)
         self.bar.configure(variable=self.progress, mode='determinate')
+        self.layout()
 
     def poll(self, wait_ms=50):
         """
