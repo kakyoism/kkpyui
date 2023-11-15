@@ -316,13 +316,11 @@ class Entry(ttk.Frame):
         self.data = None
         # title
         self.label = ttk.Label(self, text=self.text, cursor='hand2')
-        # self.label.grid(row=0, column=0, sticky='w')
         self.label.pack(expand=True, padx=5, pady=5, anchor="w")
         self.label.bind("<Double-Button-1>", lambda e: tkmsgbox.showinfo("Help", doc))
         # field
         self.field = widget_constructor(self, **widget_kwargs)
         self.columnconfigure(0, weight=1)
-        # self.field.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
         self.field.pack(expand=True, padx=5, pady=5, anchor="w")
         # context menu
         self.contextMenu = tk.Menu(self, tearoff=0)
@@ -800,7 +798,6 @@ class TextEntry(Entry):
         self.field.insert("1.0", default)
         # allow paste
         self.pasteBtn = ttk.Button(self, text="Paste", command=self._on_paste)
-        # self.pasteBtn.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
         self.pasteBtn.pack(side='bottom', expand=True, padx=5, anchor="w")
 
     def set_data(self, value):
