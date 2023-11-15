@@ -85,18 +85,13 @@ def main():
             self.sender.send_message('/oscillator', var.get())
             self.sender.send_message('/play', 1)
 
-    ui.Globals.root = ui.Root('Oscillator Example', (800, 600))
-    form = ui.Form(ui.Globals.root)
-    form.layout()
+    ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600))
+    form = ui.Form(ui.Globals.root, ['General'])
     ctrlr = OscillatorController(form)
     ui.Globals.root.bind_events(ctrlr)
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
-    menu.init(ui.Globals.root)
-    # Creating groups
-    page = ui.Page(form.entryPane, "General")
-    page.layout()
-
-    # Adding widgets to groups
+    page = form.pages['General']
+    # Adding widgets to pages
     scpt_entry = ui.TextEntry(page, 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script')
     oscillator_entry = ui.SingleOptionEntry(page, "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')
     freq_entry = ui.IntEntry(page, "Frequency (Hz)", 440, "Frequency of the output signal in Herz", (20, 20000))
@@ -104,12 +99,8 @@ def main():
     oscillator_entry.set_tracer(ctrlr.on_oscillator)
     freq_entry.set_tracer(ctrlr.on_freq)
     gain_entry.set_tracer(ctrlr.on_gain)
-    form.init([page])
-    form.layout()
     action_bar = ui.OnOffActionBar(ui.Globals.root, ctrlr)
-    action_bar.layout()
     wait_bar = ui.WaitBar(ui.Globals.root, ui.Globals.progressQueue)
-    wait_bar.layout()
     wait_bar.poll()
     ui.Globals.root.mainloop()
 
