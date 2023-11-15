@@ -23,13 +23,16 @@ import kkpyui as ui
 def main():
     class OscillatorController(ui.FormController):
         """
-        kk OSClisten gilisten, "/frequency", "f", gkfreq
-        kk OSClisten gilisten, "/gain", "f", gkgaindb
-        kk OSClisten gilisten, "/oscillator", "i", gkwavetype
-        kk OSClisten gilisten, "/duration", "f", gkdur
-        kk OSClisten gilisten, "/play", "i", gkplay
-        kk OSClisten gilisten, "/stop", "i", gkstop
-        kk OSClisten gilisten, "/quit", "i", gkquit
+        - assume csound is installed and in PATH
+        - assume csound script is in the same directory as this file
+        - script runs OSC server and listens to OSC messages below:
+          - kk OSClisten gilisten, "/frequency", "f", gkfreq
+          - kk OSClisten gilisten, "/gain", "f", gkgaindb
+          - kk OSClisten gilisten, "/oscillator", "i", gkwavetype
+          - kk OSClisten gilisten, "/duration", "f", gkdur
+          - kk OSClisten gilisten, "/play", "i", gkplay
+          - kk OSClisten gilisten, "/stop", "i", gkstop
+          - kk OSClisten gilisten, "/quit", "i", gkquit
         """
 
         def __init__(self, fm=None, model=None):
@@ -70,15 +73,15 @@ def main():
             self.cancel()
             util.kill_process_by_name('csound')
 
-        def on_freq(self, name, var, index, mode):
+        def on_freq_changed(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
             self.sender.send_message('/frequency', var.get())
 
-        def on_gain(self, name, var, index, mode):
+        def on_gain_changed(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
             self.sender.send_message('/gain', var.get())
 
-        def on_oscillator(self, name, var, index, mode):
+        def on_oscillator_changed(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
             self.sender.send_message('/play', 0)
             time.sleep(0.1)
@@ -96,9 +99,9 @@ def main():
     oscillator_entry = ui.SingleOptionEntry(page, "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')
     freq_entry = ui.IntEntry(page, "Frequency (Hz)", 440, "Frequency of the output signal in Herz", (20, 20000))
     gain_entry = ui.FloatEntry(page, "Gain (dB)", -6.0, "Gain of the output signal in dB", (-48.0, 0.0), 1.0, 2)
-    oscillator_entry.set_tracer(ctrlr.on_oscillator)
-    freq_entry.set_tracer(ctrlr.on_freq)
-    gain_entry.set_tracer(ctrlr.on_gain)
+    oscillator_entry.set_tracer(ctrlr.on_oscillator_changed)
+    freq_entry.set_tracer(ctrlr.on_freq_changed)
+    gain_entry.set_tracer(ctrlr.on_gain_changed)
     action_bar = ui.OnOffActionBar(ui.Globals.root, ctrlr)
     wait_bar = ui.WaitBar(ui.Globals.root, ui.Globals.progressQueue)
     wait_bar.poll()
