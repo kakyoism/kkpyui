@@ -152,6 +152,38 @@ class Page(ttk.LabelFrame):
         self.pack(fill="x", pady=5)
 
 
+class ScrollFrame(ttk.Frame):
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(master, *args, **kwargs)
+        self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.frame = ttk.Frame(self.canvas)
+        self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
+
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+
+        self.scrollbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.frame.bind("<Enter>", self._bound_to_mousewheel)
+        self.bind("<Enter>", self._bound_to_mousewheel)
+        self.frame.bind("<Leave>", self._unbound_to_mousewheel)
+
+    def _on_canvas_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _mouse_scroll(self, event):
+        self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+
+    def _bound_to_mousewheel(self, event):
+        self.canvas.bind_all("<MouseWheel>", self._mouse_scroll)
+
+    def _unbound_to_mousewheel(self, event):
+        self.canvas.unbind_all("<MouseWheel>")
+
+
 class Form(ttk.PanedWindow):
     """
     - accepts and creates navbar for input pages
@@ -179,11 +211,12 @@ class Form(ttk.PanedWindow):
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.update_entries)
         # Right panel: entries in page
-        self.entryPane = ttk.Frame(self)
+        # self.entryPane = ttk.Frame(self)
+        self.entryPane = ScrollFrame(self)
         # build form with navbar and page frame
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
-        self.pages = {title: Page(self.entryPane, title) for title in page_titles}
+        self.pages = {title: Page(self.entryPane.frame, title) for title in page_titles}
         self.init()
         self.layout()
 
