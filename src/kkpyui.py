@@ -679,6 +679,9 @@ class MultiOptionEntry(Entry):
         self.field.configure(menu=self.menu)
         self._build_options()
 
+    def layout(self):
+        self.pack(fill="y", expand=True, padx=5, pady=5, anchor="w")
+
     def get_data(self):
         """
         - selected subset
