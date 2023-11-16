@@ -863,7 +863,7 @@ class FileEntry(TextEntry):
         preferred_ext = self.filePats[pattern := 0][ext := 1]
         selected = filedialog.askopenfilename(
             parent=self,
-            title="Select File (s)",
+            title="Select File(s)",
             initialdir=self.startDir,
             filetypes=self.filePats,
             defaultextension=preferred_ext
@@ -887,3 +887,37 @@ class FileEntry(TextEntry):
             return
         # on macOS, only one pattern was given, so fix it
         self.filePats = tuple([self.filePats[0], ('All Files', '*')])
+
+
+class FolderEntry(TextEntry):
+    """
+    - tkinter supports single-folder selection only
+    - multiple folders can be pasted into the text field
+    """
+    def __init__(self, master: Page, path, default, doc, start_dir=util.get_platform_home_dir(), **kwargs):
+        super().__init__(master, path, default, doc, **kwargs)
+        self.startDir = start_dir
+        self.actionBtn.configure(text='Browse ...')
+
+    def get_data(self):
+        return self.data.get().splitlines()
+
+    def set_data(self, value: str):
+        """
+        - user input is always text: single or multi lines
+        """
+        coll = value if isinstance(value, list) else [value]
+        self.data.set(f'{coll}')
+
+    def on_action(self):
+        selected = filedialog.askdirectory(
+            parent=self,
+            title="Select Folder(s)",
+            initialdir=self.startDir,
+        )
+        if user_cancelled := selected == '':
+            # keep current
+            return
+        self.data.set(selected)
+        # memorize last selected file's folder
+        self.startDir = osp.dirname(selected)
