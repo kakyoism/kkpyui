@@ -797,8 +797,8 @@ class TextEntry(Entry):
         self.data.trace_add("write", self._on_data_changed)
         self.field.insert("1.0", default)
         # allow paste
-        self.pasteBtn = ttk.Button(self, text="Paste", command=self._on_paste)
-        self.pasteBtn.pack(side='bottom', expand=True, padx=5, anchor="w")
+        self.actionBtn = ttk.Button(self, text="Paste", command=self.on_action)
+        self.actionBtn.pack(side='bottom', expand=True, padx=5, anchor="w")
 
     def set_data(self, value):
         super().set_data(value)
@@ -826,10 +826,61 @@ class TextEntry(Entry):
         self.data.set(self.field.get("1.0", tk.END))
         self.field.edit_modified(False)
 
-    def _on_paste(self):
+    def on_action(self):
         """
         - replace entry text with clipboard content
         """
         # clear the text field first
         self.field.delete("1.0", tk.END)
         self.field.insert(tk.INSERT, self.field.clipboard_get())
+
+
+class FileEntry(TextEntry):
+    """
+    - to specify a default file-extension, place it as the head of file_patterns
+    - always return a list even when there is only one
+    """
+    def __init__(self, master: Page, path, default, doc, file_patterns=(), start_dir=util.get_platform_home_dir(), **kwargs):
+        super().__init__(master, path, default, doc, height=2, **kwargs)
+        self.filePats = file_patterns
+        self.startDir = start_dir
+        self._fix_platform_patterns()
+        self.actionBtn.configure(text='Browse ...')
+
+    def get_data(self):
+        import ast
+        try:
+            # multi selection
+            return ast.literal_eval(self.data.get())
+        except SyntaxError as e:
+            # single selection
+            return [self.data.get()]
+
+    def set_data(self, value):
+        coll = value if isinstance(value, list) else [value]
+        self.data.set(f'{coll}')
+
+    def on_action(self):
+        preferred_ext = self.filePats[pattern := 0][ext := 1]
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title="Select File (s)",
+            initialdir=self.startDir,
+            filetypes=self.filePats,
+            defaultextension=preferred_ext
+        )
+        if user_cancelled := selected == '':
+            return
+        if single_selection := isinstance(selected, str):
+            self.data.set(f'{[selected]}')
+
+    def _fix_platform_patterns(self):
+        """
+        - macOS demands 0 or at least 2 patterns were given if filetypes is set
+        """
+        if util.PLATFORM != 'Darwin':
+            return
+        if len(self.filePats) != 1:
+            return
+        # on macOS, only one pattern was given
+        self.filePats = tuple([self.filePats[0], ('All Files', '*')])
