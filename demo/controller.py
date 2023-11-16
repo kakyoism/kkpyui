@@ -65,7 +65,7 @@ def main():
         def init(self, event=None):
             super().init()
             self.update()
-            cmd = ['csound', self.model['General']['Csound Script'], '-odac']
+            cmd = ['csound', self.model['General']['Csound Script'][0], '-odac']
             util.run_daemon(cmd)
             # time.sleep(0.8)
 
@@ -95,7 +95,7 @@ def main():
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     page = form.pages['General']
     # Adding widgets to pages
-    scpt_entry = ui.TextEntry(page, 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script')
+    scpt_entry = ui.FileEntry(page, 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script', [('Csound Script', '*.csd'), ('All Files', '*.*')])
     oscillator_entry = ui.SingleOptionEntry(page, "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')
     freq_entry = ui.IntEntry(page, "Frequency (Hz)", 440, "Frequency of the output signal in Herz", (20, 20000))
     gain_entry = ui.FloatEntry(page, "Gain (dB)", -6.0, "Gain of the output signal in dB", (-48.0, 0.0), 1.0, 2)
