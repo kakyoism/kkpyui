@@ -303,7 +303,7 @@ class Entry(ttk.Frame):
     - used as user input, similar to CLI arguments
     - widget must belong to a group
     - groups form a tree to avoid overloading parameter panes
-    - groups also improves SNR by prioritizing frequently-tweaked parameters
+    - groups also improve SNR by prioritizing frequently-tweaked parameters
     - page is responsible for lay out entries
     """
 
