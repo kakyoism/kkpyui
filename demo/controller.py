@@ -97,7 +97,7 @@ def main():
     # Adding widgets to pages
     scpt_entry = ui.FileEntry(page, 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script', [('Csound Script', '*.csd'), ('All Files', '*.*')])
     oscillator_entry = ui.SingleOptionEntry(page, "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')
-    freq_entry = ui.IntEntry(page, "Frequency (Hz)", 440, "Frequency of the output signal in Herz", (20, 20000))
+    freq_entry = ui.IntEntry(page, "Frequency (Hz)", 440, "Frequency of the output signal in Hertz", (20, 20000))
     gain_entry = ui.FloatEntry(page, "Gain (dB)", -6.0, "Gain of the output signal in dB", (-48.0, 0.0), 1.0, 2)
     oscillator_entry.set_tracer(ctrlr.on_oscillator_changed)
     freq_entry.set_tracer(ctrlr.on_freq_changed)
