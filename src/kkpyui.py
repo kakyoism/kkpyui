@@ -1,4 +1,5 @@
 import json
+import os.path as osp
 import queue
 import threading
 import tkinter as tk
@@ -790,7 +791,7 @@ class TextEntry(Entry):
 
         super().__init__(master, text, tk.Text, default, doc, height=4, **kwargs)
         self.data = self._init_data(tk.StringVar)
-        # because the binding definition below will trigger callbacks
+        # because the binding definition below will trigger callbacks,
         # we must avoid feedback loop by setting this flag right before binding
         self._updatingModel = True
         self.field.bind("<<Modified>>", self._on_text_changed)
@@ -837,26 +838,24 @@ class TextEntry(Entry):
 
 class FileEntry(TextEntry):
     """
+    - user can type in a list of paths as text lines, one per line
     - to specify a default file-extension, place it as the head of file_patterns
-    - always return a list even when there is only one
+    - always return a list even when there is only one; so use self.data[0] on app side for single-file case
     """
     def __init__(self, master: Page, path, default, doc, file_patterns=(), start_dir=util.get_platform_home_dir(), **kwargs):
-        super().__init__(master, path, default, doc, height=2, **kwargs)
+        super().__init__(master, path, default, doc, **kwargs)
         self.filePats = file_patterns
         self.startDir = start_dir
         self._fix_platform_patterns()
         self.actionBtn.configure(text='Browse ...')
 
     def get_data(self):
-        import ast
-        try:
-            # multi selection
-            return ast.literal_eval(self.data.get())
-        except SyntaxError as e:
-            # single selection
-            return [self.data.get()]
+        return self.data.get().splitlines()
 
-    def set_data(self, value):
+    def set_data(self, value: str):
+        """
+        - user input is always text: single or multi lines
+        """
         coll = value if isinstance(value, list) else [value]
         self.data.set(f'{coll}')
 
@@ -870,9 +869,13 @@ class FileEntry(TextEntry):
             defaultextension=preferred_ext
         )
         if user_cancelled := selected == '':
+            # keep current
             return
-        if single_selection := isinstance(selected, str):
-            self.data.set(f'{[selected]}')
+        if multi_selection := isinstance(selected, (tuple, list)):
+            selected = '\n'.join(selected)
+        self.data.set(selected)
+        # memorize last selected file's folder
+        self.startDir = osp.dirname(selected)
 
     def _fix_platform_patterns(self):
         """
@@ -882,5 +885,5 @@ class FileEntry(TextEntry):
             return
         if len(self.filePats) != 1:
             return
-        # on macOS, only one pattern was given
+        # on macOS, only one pattern was given, so fix it
         self.filePats = tuple([self.filePats[0], ('All Files', '*')])
