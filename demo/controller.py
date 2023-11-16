@@ -6,7 +6,7 @@ in addition to features in form.py, with builtin support for:
 Dependencies with installation instructions:
 - csound
   - macOS: brew install csound
-  - Windows: winget install csound, or, choco install csound
+  - Windows: choco install csound, or download and install binary from https://csound.com/download.html
 """
 import os.path as osp
 import sys
