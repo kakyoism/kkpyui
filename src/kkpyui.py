@@ -14,23 +14,38 @@ class Globals:
     progressQueue = queue.Queue()
 
 
-def _validate_int(user_input, new_value, widget_name):
-    return _validate_number(user_input, new_value, widget_name, int)
+def _validate_int(value_after_input, user_input, widget_name):
+    return _validate_number(value_after_input, user_input, widget_name, int)
 
 
-def _validate_float(user_input, new_value, widget_name):
-    return _validate_number(user_input, new_value, widget_name, float)
+def _validate_float(value_after_input, user_input, widget_name):
+    return _validate_number(value_after_input, user_input, widget_name, float)
 
 
-def _validate_number(user_input, new_value, widget_name, data_type):
-    # disallow anything but numbers in the input
-    is_digit = new_value == '' or new_value.isdigit()
-    if not is_digit:
+def _validate_number(value_after_input, user_input, widget_name, data_type):
+    """
+    - ttk.spinbox does not support paste over selection; pasted content always prepends
+    - so pasting always fails number validation in spinbox
+    """
+    # allow '-6.' and append 0 to fix format
+    if truncated_float := data_type == float and value_after_input.endswith('.') and util.is_float_text(value_after_input):
+        value_after_input += '0'
+        return True
+    # '-' is not a valid number and will fail here, beware erase digits in a row with backspace
+    if not util.is_number_text(value_after_input) or value_after_input == '':
         Globals.root.bell()
         return False
-    minval = data_type(Globals.root.nametowidget(widget_name).config('from')[4])
-    maxval = data_type(Globals.root.nametowidget(widget_name).config('to')[4])
-    if not (minval <= data_type(user_input) <= maxval):
+    raw_min = Globals.root.nametowidget(widget_name).config('from')[4]
+    raw_max = Globals.root.nametowidget(widget_name).config('to')[4]
+    minval = raw_min if raw_min in (float('-inf'), float('inf')) else data_type(raw_min)
+    maxval = raw_max if raw_max in (float('-inf'), float('inf')) else data_type(raw_max)
+    try:
+        if not (minval <= data_type(value_after_input) <= maxval):
+            Globals.root.bell()
+            util.alert(f"""New value {value_after_input} would fall outside of range: [{minval}, {maxval}]
+Change skipped""", 'ERROR')
+            return False
+    except ValueError as e:
         Globals.root.bell()
         return False
     return True
@@ -852,13 +867,6 @@ class FileEntry(TextEntry):
     def get_data(self):
         return self.data.get().splitlines()
 
-    def set_data(self, value: str):
-        """
-        - user input is always text: single or multi lines
-        """
-        coll = value if isinstance(value, list) else [value]
-        self.data.set(f'{coll}')
-
     def on_action(self):
         preferred_ext = self.filePats[pattern := 0][ext := 1]
         selected = filedialog.askopenfilename(
@@ -901,13 +909,6 @@ class FolderEntry(TextEntry):
 
     def get_data(self):
         return self.data.get().splitlines()
-
-    def set_data(self, value: str):
-        """
-        - user input is always text: single or multi lines
-        """
-        coll = value if isinstance(value, list) else [value]
-        self.data.set(f'{coll}')
 
     def on_action(self):
         selected = filedialog.askdirectory(
