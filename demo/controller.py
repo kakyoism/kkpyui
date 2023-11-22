@@ -89,11 +89,11 @@ def main():
             self.sender.send_message('/play', 1)
 
     ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600))
-    form = ui.Form(ui.Globals.root, ['General'])
+    form = ui.Form(ui.Globals.root, ['general'])
     ctrlr = OscillatorController(form)
     ui.Globals.root.bind_events(ctrlr)
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
-    page = form.pages['General']
+    page = form.pages['general']
     # Adding widgets to pages
     scpt_entry = ui.FileEntry(page, 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script', [('Csound Script', '*.csd'), ('All Files', '*.*')])
     oscillator_entry = ui.SingleOptionEntry(page, "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')

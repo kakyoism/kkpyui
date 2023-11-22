@@ -277,7 +277,7 @@ class Form(ttk.PanedWindow):
         for pg in self.pages.values():
             pg.pack_forget()
         # After hiding, update the right pane to ensure correct display
-        self.pages[selected_title].layout() if selected_title else list(self.pages.values())[0].layout()
+        self.pages[selected_title.lower()].layout() if selected_title else list(self.pages.values())[0].layout()
         self.entryPane.update()
 
     def _on_clear_search(self, event):

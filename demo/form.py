@@ -40,13 +40,13 @@ class MyController(ui.FormController):
 
 def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
-    form = ui.Form(ui.Globals.root, ['Profile', 'Plot'])
+    form = ui.Form(ui.Globals.root, ['profile', 'plot'])
     ctrlr = MyController(form)
     ui.Globals.root.bind_events(ctrlr)
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     # Adding widgets to pages
-    pg1 = form.pages['Profile']
-    pg2 = form.pages['Plot']
+    pg1 = form.pages['profile']
+    pg2 = form.pages['plot']
     name_wgt = ui.TextEntry(pg1, "Name", "Robin Sena", "text widget.")
     age_wgt = ui.IntEntry(pg1, "Age", 15, "integer widget", (0, float('inf')))
     height_wgt = ui.FloatEntry(pg1, "Height (m)", 1.68, "float widget", (0.0, 2.0), 0.01, 2)
