@@ -68,7 +68,7 @@ class Root(tk.Tk):
 
     def bind_events(self, controller):
         """
-        - controller interface, must implement:
+        - controller interface must implement:
           - ENTER key event: default action
           - ESC key event: cancel/negate default action
           - Window X button event: quit
@@ -77,7 +77,7 @@ class Root(tk.Tk):
         self.bind("<Return>", controller.submit)
         self.bind("<Escape>", lambda event: controller.cancel(event))
         # Expose: called even when slider is dragged, so we don't use it
-        # Map: triggered when windows is visible
+        # Map: triggered when windows are visible
         self.bind('<Map>', lambda event: controller.init(event))
         self.bind('<Destroy>', lambda event: controller.term(event))
         # bind X button to quit the program
@@ -99,7 +99,7 @@ class Root(tk.Tk):
 class Prompt:
     """
     - must use within tkinter mainloop
-    - otherwise will hang upon confirmation
+    - otherwise the app will freeze upon confirmation
     """
 
     def __init__(self, logger=None):
@@ -132,7 +132,7 @@ Advice:
     def error(self, errclass, detail, advice, confirm=True):
         """
         - for problems with significant impact
-        - program will crash immediately
+         - the program will crash immediately
         """
         msg = f"""\
 Detail:
@@ -225,7 +225,7 @@ class Form(ttk.PanedWindow):
     - layout: page-based navigation
     - filter: locate form entries by searching for title keywords
     - structure: Form > Page > Entry
-    - instantiation: Form > Page (slave to form pane) > Entry (slave to page)
+    - instantiation: Form > Page (slaved to form pane) > Entry (slaved to page)
     """
 
     def __init__(self, master, page_titles: list[str], **kwargs):
@@ -251,7 +251,7 @@ class Form(ttk.PanedWindow):
         # build form with navbar and page frame
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
-        self.pages = {title: Page(self.entryPane.frame, title) for title in page_titles}
+        self.pages = {title.lower(): Page(self.entryPane.frame, title.title()) for title in page_titles}
         self.init()
         self.layout()
 
@@ -340,7 +340,7 @@ class Entry(ttk.Frame):
         self.field.pack(expand=True, padx=5, pady=2, anchor="w")
         # context menu
         self.contextMenu = tk.Menu(self, tearoff=0)
-        # use context menu instead of direct clicking to avoid accidental reset
+        # use a context menu instead of direct clicking to avoid accidental reset
         self.contextMenu.add_command(label="Reset", command=self.reset)
         # maximize context-menu hitbox
         self.field.bind("<Button-2>", self.show_context_menu)
@@ -369,11 +369,11 @@ class Entry(ttk.Frame):
 
     def set_tracer(self, handler):
         """
-        - handler: callback(name, var, index, mode)
+        - handler: callback (name, var, index, mode)
           - name: name of the variable
-          - var: tk.variable object
+          - var: tk.Variable object
           - index: index of the variable
-          - mode: 'read'(triggered when var is read), 'write'(triggered when var is written), 'unset'
+          - mode: 'read' (triggered when var is read), 'write'(triggered when var is written), 'unset'
         """
         self.data.trace_add('write', callback=lambda name, index, mode, var=self.data: handler(name, var, index, mode))
 
@@ -476,7 +476,7 @@ class FormController:
     def quit(self, event=None):
         """
         - CAUTION:
-          - for sharing binding between menu, x-button, and other ui for quitting
+          - for sharing binding between menu, x-button, and another ui for quitting
           - although usually we avoid physical ops in controller
         - override term() in app
         """
@@ -616,7 +616,7 @@ class ProgressBar(WaitBar):
 class IntEntry(Entry):
     """
     - show slider for finite numbers only
-    - ttk.Scale is intended for ratio only; the handle does not move for negative numbers
+    - ttk.Scale is intended for a ratio only; the handle does not move for negative numbers
     - must bind a separate variable to the slider to ensure slider-clicking works
     """
     def __init__(self, master: Page, text, default, doc, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
@@ -855,7 +855,7 @@ class FileEntry(TextEntry):
     """
     - user can type in a list of paths as text lines, one per line
     - to specify a default file-extension, place it as the head of file_patterns
-    - always return a list even when there is only one; so use self.data[0] on app side for single-file case
+    - always return a list even when there is only one; so use self.data[0] on app side for a single-file case
     """
     def __init__(self, master: Page, path, default, doc, file_patterns=(), start_dir=util.get_platform_home_dir(), **kwargs):
         super().__init__(master, path, default, doc, **kwargs)
