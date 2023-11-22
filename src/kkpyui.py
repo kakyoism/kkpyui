@@ -246,7 +246,6 @@ class Form(ttk.PanedWindow):
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.update_entries)
         # Right panel: entries in page
-        # self.entryPane = ttk.Frame(self)
         self.entryPane = ScrollFrame(self)
         # build form with navbar and page frame
         self.add(self.navPane, weight=0)
@@ -261,7 +260,7 @@ class Form(ttk.PanedWindow):
     def init(self):
         # Populate tree with page titles
         for title, pg in self.pages.items():
-            self.tree.insert("", "end", text=title)
+            self.tree.insert("", "end", text=title.title())
         # select first page
         self.tree.selection_set(self.tree.get_children()[0])
         self.update_entries(None)
@@ -477,7 +476,7 @@ class FormController:
         """
         - CAUTION:
           - for sharing binding between menu, x-button, and another ui for quitting
-          - although usually we avoid physical ops in controller
+          - although usually we avoid view ops in controller
         - override term() in app
         """
         self.term()
