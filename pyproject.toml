@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kkpyui"
-version = "0.9.5"
+version = "0.10.0"
 description = "Tkinter-based GUI widget library for building small tool applications"
 authors = ["Beinan Li <li.beinan@gmail.com>"]
 readme = "README.md"

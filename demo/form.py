@@ -9,6 +9,7 @@ with builtin support for:
 - progress bar
 - keyboard shortcuts for running and quitting
 """
+import json
 import os.path as osp
 import sys
 import time
@@ -35,7 +36,8 @@ class MyController(ui.FormController):
             ui.Globals.progressQueue.put(('/processing', p, f'Processing {p}%...'))
         ui.Globals.progressQueue.put(('/stop', 100, 'Completed!'))
         prompt = ui.Prompt()
-        prompt.warning('You are calling base class', 'Subclass this!')
+        out = self.pack()
+        prompt.info(f'{json.dumps(vars(out))}', confirm=True)
 
 
 def main():

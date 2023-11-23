@@ -3,6 +3,7 @@ import os.path as osp
 import queue
 import threading
 import tkinter as tk
+import types
 from tkinter import ttk, filedialog
 from tkinter import messagebox as tkmsgbox
 # 3rd party
@@ -446,6 +447,13 @@ class FormController:
         self.update()
         config = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for title, pg in self.form.pages.items() if title != "input"}
         util.save_json(preset, config)
+
+    def pack(self):
+        """
+        - for easy consumption of client objects
+        """
+        self.update()
+        return types.SimpleNamespace(**self.model)
 
     def reset(self):
         for pg in self.form.pages.values():
