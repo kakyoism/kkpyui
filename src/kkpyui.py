@@ -103,14 +103,15 @@ class Prompt:
     - otherwise the app will freeze upon confirmation
     """
 
-    def __init__(self, logger=None):
+    def __init__(self, master=Globals.root, logger=None):
+        self.master = master
         self.logger = logger or util.glogger
 
     def info(self, msg, confirm=True):
         """Prompt with info."""
         self.logger.info(msg)
         if confirm:
-            tkmsgbox.showinfo('Info', msg, icon='info')
+            tkmsgbox.showinfo('Info', msg, icon='info', parent=self.master)
 
     def warning(self, detail, advice, question='Continue?', confirm=True):
         """
@@ -128,12 +129,12 @@ Advice:
         self.logger.warning(msg)
         if not confirm:
             return True
-        return tkmsgbox.askyesno('Warning', msg, icon='warning')
+        return tkmsgbox.askyesno('Warning', msg, icon='warning', parent=self.master)
 
     def error(self, errclass, detail, advice, confirm=True):
         """
         - for problems with significant impact
-         - the program will crash immediately
+        - the program will crash immediately if not to confirm
         """
         msg = f"""\
 Detail:
@@ -145,7 +146,7 @@ Advice:
 Will crash"""
         self.logger.error(msg)
         if confirm:
-            tkmsgbox.showerror('Error', msg, icon='error')
+            tkmsgbox.showerror('Error', msg, icon='error', parent=self.master)
         raise errclass(msg)
 
 
