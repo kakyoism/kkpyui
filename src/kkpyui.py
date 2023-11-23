@@ -412,11 +412,14 @@ class FormMenu(tk.Menu):
 class FormController:
     """
     - observe all entries and update model
+    - both form and realtime apps can use this class,
+    - realtime apps can set arg-tracers while form apps can use submit() to update model
     """
 
-    def __init__(self, fm=None, model=None):
-        self.form = fm
+    def __init__(self, form=None, model=None):
+        self.form = form
         self.model = model
+        self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
 
     def update(self):
         self.model = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for pg in self.form.pages.values()}
