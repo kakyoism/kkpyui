@@ -552,6 +552,7 @@ class OnOffActionBar(FormActionBar):
 class WaitBar(ttk.Frame):
     """
     - app must run in worker thread to avoid blocking UI
+    - use /start, /stop, /processing to mark start/end/progress
     - when using subprocess to run a blackbox task, use indeterminate mode cuz there is no way to pass progress back
     - protocol: tuple(stage, progress, description), where stage is program instruction, description is for display
     - TODO: use IPC for cross-language open-source tasks
