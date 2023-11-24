@@ -432,7 +432,7 @@ class FormController:
         - input is runtime data that changes with each run
         - only config will be saved/loaded as preset
         """
-        config = util.load_json(preset)
+        config = util.load_json(preset) if isinstance(preset, str) else preset
         for title, page in self.form.pages.items():
             for entry in page.winfo_children():
                 try:
