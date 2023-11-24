@@ -75,14 +75,14 @@ class Root(tk.Tk):
           - Window X button event: quit
         - refer to Inter-Client Communication Conventions Manual ICCCM for possible window events
         """
-        self.bind("<Return>", controller.submit)
-        self.bind("<Escape>", lambda event: controller.cancel(event))
+        self.bind("<Return>", controller.on_submit)
+        self.bind("<Escape>", lambda event: controller.on_cancel(event))
         # Expose: called even when slider is dragged, so we don't use it
         # Map: triggered when windows are visible
-        self.bind('<Map>', lambda event: controller.init(event))
-        self.bind('<Destroy>', lambda event: controller.term(event))
+        self.bind('<Map>', lambda event: controller.on_activate(event))
+        self.bind('<Destroy>', lambda event: controller.on_term(event))
         # bind X button to quit the program
-        self.protocol('WM_DELETE_WINDOW', controller.quit)
+        self.protocol('WM_DELETE_WINDOW', controller.on_quit)
 
     def _auto_focus(self):
         def _unpin_root(event):
@@ -408,7 +408,7 @@ class FormMenu(tk.Menu):
             self.controller.save(preset)
 
     def on_quit(self):
-        self.controller.quit(None)
+        self.controller.on_quit(None)
 
 
 class FormController:
@@ -465,7 +465,7 @@ class FormController:
             for entry in pg.winfo_children():
                 entry.reset()
 
-    def submit(self, event=None):
+    def on_submit(self, event=None):
         """
         - subclass this to implement custom logic
         """
@@ -481,33 +481,33 @@ class FormController:
         """
         raise NotImplementedError('subclass this!')
 
-    def cancel(self, event=None):
+    def on_cancel(self, event=None):
         """
         - for form-filling case, we quit window on cancelling
         - override this in app
         """
-        self.quit()
+        self.on_quit()
 
-    def quit(self, event=None):
+    def on_quit(self, event=None):
         """
         - CAUTION:
           - for sharing binding between menu, x-button, and another ui for quitting
           - although usually we avoid view ops in controller
         - override term() in app
         """
-        self.term()
+        self.on_term()
         self.form.master.quit()
 
-    def init(self, event=None):
+    def on_activate(self, event=None):
         """
         - binding of <Expose> event as logical initialization
-        - called after mainloop() started, i.e., when window is partially visible
+        - called whenever root window is partially visible, i.e., foregrounded
         - controller can start retrieving entries
         - override this in app
         """
         pass
 
-    def term(self, event=None):
+    def on_term(self, event=None):
         """
         - binding of <Destroy> event as logical termination
         - called AFTER triggering WM_DELETE_WINDOW
@@ -549,10 +549,10 @@ class FormActionBar(ttk.Frame):
         self.controller.reset()
 
     def on_cancel(self, event=None):
-        self.controller.cancel()
+        self.controller.on_cancel()
 
     def on_submit(self, event=None):
-        self.controller.submit()
+        self.controller.on_submit()
 
 
 class OnOffActionBar(FormActionBar):
@@ -889,6 +889,10 @@ class FileEntry(TextEntry):
     def set_data(self, value: list[str]):
         self.data.set('\n'.join(value))
         self._on_data_changed()
+
+    def reset(self):
+        lst = self.default if isinstance(self.default, (list, tuple)) else [self.default]
+        self.set_data(lst)
 
     def on_action(self):
         preferred_ext = self.filePats[pattern := 0][ext := 1]
