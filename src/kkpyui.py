@@ -436,7 +436,7 @@ class FormController:
         for title, page in self.form.pages.items():
             for entry in page.winfo_children():
                 try:
-                    entry.set_data(config[title][entry.text])
+                    entry.set_data(config[title.title()][entry.text])
                 except KeyError:
                     pass
 
@@ -444,6 +444,7 @@ class FormController:
         """
         - only config is saved
         - input always belongs to group "input"
+        - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
         """
         self.update()
         config = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for title, pg in self.form.pages.items() if title != "input"}
@@ -451,7 +452,7 @@ class FormController:
 
     def pack(self):
         """
-        - for easy consumption of client objects
+        - for easy consumption of client objects as arg
         """
         self.update()
         return types.SimpleNamespace(**self.model)
@@ -877,7 +878,14 @@ class FileEntry(TextEntry):
         self.actionBtn.configure(text='Browse ...')
 
     def get_data(self):
+        """
+        - a list of paths
+        """
         return self.data.get().splitlines()
+
+    def set_data(self, value: list[str]):
+        self.data.set('\n'.join(value))
+        self._on_data_changed()
 
     def on_action(self):
         preferred_ext = self.filePats[pattern := 0][ext := 1]
