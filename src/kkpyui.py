@@ -450,6 +450,9 @@ class FormController:
         config = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for title, pg in self.form.pages.items() if title != "input"}
         util.save_json(preset, config)
 
+    def reflect(self):
+        self.load(self.model)
+
     def pack(self):
         """
         - for easy consumption of client objects as arg
