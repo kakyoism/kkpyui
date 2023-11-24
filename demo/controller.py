@@ -39,8 +39,9 @@ def main():
             super().__init__(fm, model)
             self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
             self.playing = False
+            self.initialized = False
 
-        def submit(self, event=None):
+        def on_submit(self, event=None):
             """
             - assume csound has started
             """
@@ -56,21 +57,24 @@ def main():
             self.playing = True
             return True
 
-        def cancel(self, event=None):
+        def on_cancel(self, event=None):
             self.sender.send_message('/play', 0)
             ui.Globals.progressQueue.put(('/stop', 100, 'Stopped'))
             time.sleep(0.1)
             self.playing = False
 
-        def init(self, event=None):
-            super().init()
+        def on_activate(self, event=None):
+            super().on_activate()
+            if self.initialized:
+                return
+            self.initialized = True
             self.update()
             cmd = ['csound', self.model['General']['Csound Script'][0], '-odac']
             util.run_daemon(cmd)
             # time.sleep(0.8)
 
-        def term(self, event=None):
-            self.cancel()
+        def on_term(self, event=None):
+            self.on_cancel()
             util.kill_process_by_name('csound')
 
         def on_freq_changed(self, name, var, index, mode):
