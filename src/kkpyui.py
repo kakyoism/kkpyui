@@ -401,17 +401,17 @@ class FormMenu(tk.Menu):
             ("Preset Files", "*.json"),
         ])
         if preset:
-            self.controller.load(preset)
+            self.controller.load_preset(preset)
 
     def on_save_preset(self):
         preset = filedialog.asksaveasfilename(title="Save Preset", filetypes=[
             ("Preset Files", "*.preset.json"),
         ])
         if preset:
-            self.controller.save(preset)
+            self.controller.save_preset(preset)
 
     def on_open_log(self):
-        self.controller.open_log()
+        self.controller.on_open_log()
 
     def on_quit(self):
         self.controller.on_quit(None)
@@ -432,7 +432,7 @@ class FormController:
     def update(self):
         self.model = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for pg in self.form.pages.values()}
 
-    def load(self, preset):
+    def load_preset(self, preset):
         """
         - model includes input and config
         - input is runtime data that changes with each run
@@ -446,7 +446,7 @@ class FormController:
                 except KeyError:
                     pass
 
-    def save(self, preset):
+    def save_preset(self, preset):
         """
         - only config is saved
         - input always belongs to group "input"
@@ -456,7 +456,7 @@ class FormController:
         config = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for title, pg in self.form.pages.items() if title != "input"}
         util.save_json(preset, config)
 
-    def open_log(self):
+    def on_open_log(self):
         """
         - logging scheme must be defined by the application, e.g., subclassing the controller,
         - usually it's as simple as opening a file path using the default browser
@@ -465,7 +465,7 @@ class FormController:
         prompt.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
 
     def reflect(self):
-        self.load(self.model)
+        self.load_preset(self.model)
 
     def pack(self):
         """
