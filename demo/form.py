@@ -10,6 +10,7 @@ with builtin support for:
 - keyboard shortcuts for running and quitting
 """
 import json
+import logging
 import os.path as osp
 import sys
 import time
@@ -18,11 +19,13 @@ import time
 _script_dir = osp.abspath(osp.dirname(__file__))
 sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/../src'))
 import kkpyui as ui
+import kkpyutil as util
 
 
 class MyController(ui.FormController):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.prompt = ui.Prompt()
 
     def run_background(self):
         """
@@ -35,9 +38,14 @@ class MyController(ui.FormController):
             time.sleep(0.01)
             ui.Globals.progressQueue.put(('/processing', p, f'Processing {p}%...'))
         ui.Globals.progressQueue.put(('/stop', 100, 'Completed!'))
-        prompt = ui.Prompt()
         out = self.pack()
-        prompt.info(f'{json.dumps(vars(out))}', confirm=True)
+        self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
+
+    def open_log(self):
+        log = util.find_log_path(self.prompt.logger)
+        if not log:
+            return
+        util.open_in_browser(log)
 
 
 def main():
