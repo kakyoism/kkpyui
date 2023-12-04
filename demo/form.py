@@ -41,7 +41,7 @@ class MyController(ui.FormController):
         out = self.pack()
         self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
 
-    def open_log(self):
+    def on_open_log(self):
         log = util.find_log_path(self.prompt.logger)
         if not log:
             return
