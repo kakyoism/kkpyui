@@ -92,7 +92,7 @@ def main():
             self.sender.send_message('/oscillator', var.get())
             self.sender.send_message('/play', 1)
 
-    ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600))
+    ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'icon.png'))
     form = ui.Form(ui.Globals.root, ['general'])
     ctrlr = OscillatorController(form)
     ui.Globals.root.bind_events(ctrlr)
