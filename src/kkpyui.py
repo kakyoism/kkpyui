@@ -390,10 +390,12 @@ class FormMenu(tk.Menu):
         self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
         self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
         self.fileMenu.add_command(label="Exit", command=self.on_quit)
-        self.aboutMenu = tk.Menu(self, tearoff=False)
-        self.aboutMenu.add_command(label="Open Log", command=self.on_open_log)
+        self.helpMenu = tk.Menu(self, tearoff=False)
+        self.helpMenu.add_command(label="Help", command=self.on_open_help)
+        self.helpMenu.add_command(label="Open Log", command=self.on_open_log)
+        self.helpMenu.add_command(label="Report A Problem", command=self.on_report_issue)
         self.add_cascade(label="File", menu=self.fileMenu)
-        self.add_cascade(label="About", menu=self.aboutMenu)
+        self.add_cascade(label="Help", menu=self.helpMenu)
         self.controller = controller
 
     def on_load_preset(self):
@@ -412,8 +414,14 @@ class FormMenu(tk.Menu):
         if preset:
             self.controller.save_preset(preset)
 
+    def on_open_help(self):
+        self.controller.on_open_help()
+
     def on_open_log(self):
         self.controller.on_open_log()
+
+    def on_report_issue(self):
+        self.controller.on_report_issue()
 
     def on_quit(self):
         self.controller.on_quit(None)
@@ -458,6 +466,13 @@ class FormController:
         config = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for title, pg in self.form.pages.items() if title != "input"}
         util.save_json(preset, config)
 
+    def on_open_help(self):
+        """
+        - open help page in browser
+        """
+        prompt = Prompt()
+        prompt.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
+
     def on_open_log(self):
         """
         - logging scheme must be defined by the application, e.g., subclassing the controller,
@@ -465,6 +480,13 @@ class FormController:
         """
         prompt = Prompt()
         prompt.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
+
+    def on_report_bug(self):
+        """
+        - report bug to the developer
+        """
+        prompt = Prompt()
+        prompt.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
 
     def reflect(self):
         self.load_preset(self.model)
