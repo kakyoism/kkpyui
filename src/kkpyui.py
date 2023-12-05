@@ -53,7 +53,7 @@ Change skipped""", 'ERROR')
 
 
 class Root(tk.Tk):
-    def __init__(self, title, size=(800, 600), *args, **kwargs):
+    def __init__(self, title, size=(800, 600), icon=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.title(title)
         screen_size = (self.winfo_screenwidth(), self.winfo_screenheight())
@@ -65,6 +65,8 @@ class Root(tk.Tk):
         )
         self.validateIntCmd = (self.register(_validate_int), '%P', '%S', '%W')
         self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
+        if icon:
+            self.iconphoto(True, tk.PhotoImage(file=icon))
         self._auto_focus()
 
     def bind_events(self, controller):
