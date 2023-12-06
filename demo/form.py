@@ -32,12 +32,15 @@ class MyController(ui.FormController):
         - override this in app
         - run in background thread to avoid blocking UI
         """
-        ui.Globals.progressQueue.put(('/start', 0, 'Processing ...'))
+        self.start_progress()
         for p in range(101):
             # Simulate a task
             time.sleep(0.01)
-            ui.Globals.progressQueue.put(('/processing', p, f'Processing {p}%...'))
-        ui.Globals.progressQueue.put(('/stop', 100, 'Completed!'))
+            self.set_progress('/processing', p, 'Processing ...')
+            if self.needs_to_stop():
+                self.stop_progress()
+                return
+        self.stop_progress()
         out = self.pack()
         self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
 

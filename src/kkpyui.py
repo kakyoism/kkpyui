@@ -13,6 +13,7 @@ import kkpyutil as util
 class Globals:
     root = None
     progressQueue = queue.Queue()
+    stopEvent = threading.Event()
 
 
 def _validate_int(value_after_input, user_input, widget_name):
@@ -434,12 +435,16 @@ class FormController:
     - both form and realtime apps can use this class,
     - realtime apps can set arg-tracers while form apps can use submit() to update model
     - model and app-config share the same keys
+    - backend worker must work in worker thread
+    - progressbar and worker synchronize via threading.Event
     """
 
     def __init__(self, form=None, model=None):
         self.form = form
         self.model = model
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
+        self.workerThread = None
+        self.stopEvent = threading.Event()
 
     def update(self):
         config_by_page = {
@@ -474,6 +479,18 @@ class FormController:
         }
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
         util.save_json(preset, config)
+
+    def needs_to_stop(self):
+        return self.stopEvent.is_set()
+
+    def start_progress(self):
+        self.set_progress('/start', 0, 'Processing ...')
+
+    def stop_progress(self):
+        """
+        - progressbar will stop where it is at the moment
+        """
+        self.set_progress('/stop', 100, 'Stopped')
 
     def on_open_help(self):
         """
@@ -516,10 +533,14 @@ class FormController:
         """
         - subclass this to implement custom logic
         """
-        self.update()
         # lambda wrapper ensures "self" is captured by threading as a context
         # otherwise ui thread still blocks
-        threading.Thread(target=lambda: self.run_background(), daemon=True).start()
+        if self.workerThread and self.workerThread.is_alive():
+            return
+        self.update()
+        self.stopEvent.clear()
+        self.workerThread = threading.Thread(target=lambda: self.run_background(), daemon=True)
+        self.workerThread.start()
 
     def run_background(self):
         """
@@ -530,10 +551,12 @@ class FormController:
 
     def on_cancel(self, event=None):
         """
-        - for form-filling case, we quit window on cancelling
-        - override this in app
+        - cancelling a running background task
         """
-        self.on_quit()
+        # self.on_quit()
+        if self.workerThread and self.workerThread.is_alive():
+            self.stopEvent.set()
+            self.wait_for_thread_exit()
 
     def on_quit(self, event=None):
         """
@@ -542,8 +565,16 @@ class FormController:
           - although usually we avoid view ops in controller
         - override term() in app
         """
+        if self.workerThread and self.workerThread.is_alive():
+            self.stopEvent.set()
+            self.wait_for_thread_exit()
         self.on_term()
         self.form.master.quit()
+
+    def wait_for_thread_exit(self, wait_ms=100):
+        if self.workerThread.is_alive():
+            # Schedule this method to be called again after wait_ms milliseconds
+            self.form.after(wait_ms, self.wait_for_thread_exit)
 
     def on_activate(self, event=None):
         """
@@ -657,7 +688,7 @@ class ProgressBar(WaitBar):
         self.bar.configure(variable=self.progress, mode='determinate')
         self.layout()
 
-    def poll(self, wait_ms=50):
+    def poll(self, wait_ms=100):
         """
         - Periodically check for messages from worker thread.
         """
