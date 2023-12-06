@@ -480,7 +480,7 @@ class FormController:
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
         util.save_json(preset, config)
 
-    def needs_to_stop(self):
+    def scheduled_to_stop(self):
         return self.stopEvent.is_set()
 
     def start_progress(self):
