@@ -442,7 +442,11 @@ class FormController:
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
 
     def update(self):
-        self.model = {pg.get_title(): {entry.text: entry.get_data() for entry in pg.winfo_children()} for pg in self.form.pages.values()}
+        config_by_page = {
+            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children()}
+            for title, pg in self.form.pages.items()
+        }
+        self.model = {k: v for entries in config_by_page.values() for k, v in entries.items()}
 
     def load_preset(self, preset):
         """
@@ -464,7 +468,6 @@ class FormController:
         - input always belongs to group "input"
         - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
         """
-        self.update()
         config_by_page = {
             pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children()}
             for title, pg in self.form.pages.items() if title != "input"

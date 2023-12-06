@@ -49,9 +49,9 @@ def main():
                 return False
             self.update()
             options = ['Sine', 'Square', 'Sawtooth']
-            self.sender.send_message('/oscillator', options.index(self.model['General']['Oscillator']))
-            self.sender.send_message('/frequency', self.model['General']['Frequency (Hz)'])
-            self.sender.send_message('/gain', self.model['General']['Gain (dB)'])
+            self.sender.send_message('/oscillator', options.index(self.model['oscillator']))
+            self.sender.send_message('/frequency', self.model['frequency'])
+            self.sender.send_message('/gain', self.model['gain'])
             self.sender.send_message('/play', 1)
             ui.Globals.progressQueue.put(('/start', 0, 'Playing ...'))
             self.playing = True
@@ -69,7 +69,7 @@ def main():
                 return
             self.initialized = True
             self.update()
-            cmd = ['csound', self.model['General']['Csound Script'][0], '-odac']
+            cmd = ['csound', self.model['engine'][0], '-odac']
             util.run_daemon(cmd)
             # time.sleep(0.8)
 
