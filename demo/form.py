@@ -37,7 +37,7 @@ class MyController(ui.FormController):
             # Simulate a task
             time.sleep(0.01)
             self.set_progress('/processing', p, 'Processing ...')
-            if self.needs_to_stop():
+            if self.scheduled_to_stop():
                 self.stop_progress()
                 return
         self.stop_progress()
