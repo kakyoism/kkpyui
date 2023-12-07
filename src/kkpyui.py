@@ -13,7 +13,7 @@ import kkpyutil as util
 class Globals:
     root = None
     progressQueue = queue.Queue()
-    stopEvent = threading.Event()
+    taskStopEvent = threading.Event()
 
 
 def _validate_int(value_after_input, user_input, widget_name):
@@ -68,9 +68,19 @@ class Root(tk.Tk):
         self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
         if icon:
             self.iconphoto(True, tk.PhotoImage(file=icon))
+        self.controller = None
         self._auto_focus()
 
-    def bind_events(self, controller):
+    def set_controller(self, controller):
+        """
+        - controller is used in many non-contiguous calls in the init sequence
+        - so for DRY, it needs to be a member
+        - it's created after root because views that it knows must use root as their parent,
+        - so we set it using a setter whenever there is a chance
+        """
+        self.controller = controller
+
+    def bind_events(self):
         """
         - controller interface must implement:
           - ENTER key event: default action
@@ -78,14 +88,16 @@ class Root(tk.Tk):
           - Window X button event: quit
         - refer to Inter-Client Communication Conventions Manual ICCCM for possible window events
         """
-        self.bind("<Return>", controller.on_submit)
-        self.bind("<Escape>", lambda event: controller.on_cancel(event))
+        self.bind("<Return>", self.controller.on_submit)
+        self.bind("<Escape>", lambda event: self.controller.on_cancel(event))
         # Expose: called even when slider is dragged, so we don't use it
-        # Map: triggered when windows are visible
-        self.bind('<Map>', lambda event: controller.on_activate(event))
-        self.bind('<Destroy>', lambda event: controller.on_term(event))
+        # Map: triggered when windows are visible, called every frame
+        # Destroy: triggered when windows are closed, called every frame
+        self.bind('<Map>', lambda event: self.controller.on_during_activate(event))
+        self.bind('<Destroy>', lambda event: self.controller.on_during_deactivate(event))
+        # startup event: init(), must be called by client
         # bind X button to quit the program
-        self.protocol('WM_DELETE_WINDOW', controller.on_quit)
+        self.protocol('WM_DELETE_WINDOW', self.controller.on_quit)
 
     def _auto_focus(self):
         def _unpin_root(event):
@@ -98,6 +110,14 @@ class Root(tk.Tk):
         self.attributes('-topmost', True)
         self.focus_force()
         self.bind('<FocusIn>', _unpin_root)
+
+    def mainloop(self, n: int = 0):
+        """
+        - prepend custom pre-startup event
+        - this solves the problem where <Map> event, being a per-frame activation event, gets called many times instead of just once, which is redundant for startup logic
+        """
+        self.after(0, self.controller.on_startup)
+        super().mainloop()
 
 
 class Prompt:
@@ -432,19 +452,20 @@ class FormMenu(tk.Menu):
 class FormController:
     """
     - observe all entries and update model
-    - both form and realtime apps can use this class,
-    - realtime apps can set arg-tracers while form apps can use submit() to update model
+    - both form and realtime apps can use this class
+    - form apps can use submit() to update model
+    - realtime apps can set arg-tracers
     - model and app-config share the same keys
-    - backend worker must work in worker thread
-    - progressbar and worker synchronize via threading.Event
+    - backend task works in task thread
+    - progressbar and task synchronize via threading.Event
     """
 
     def __init__(self, form=None, model=None):
         self.form = form
         self.model = model
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
-        self.workerThread = None
-        self.stopEvent = threading.Event()
+        self.taskThread = None
+        self.taskStopEvent = Globals.taskStopEvent
 
     def update(self):
         config_by_page = {
@@ -480,8 +501,11 @@ class FormController:
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
         util.save_json(preset, config)
 
+    def reflect(self):
+        self.load_preset(self.model)
+
     def scheduled_to_stop(self):
-        return self.stopEvent.is_set()
+        return self.taskStopEvent.is_set()
 
     def start_progress(self):
         self.set_progress('/start', 0, 'Processing ...')
@@ -492,6 +516,21 @@ class FormController:
         """
         self.set_progress('/stop', 100, 'Stopped')
 
+    def get_latest_model(self):
+        """
+        - for easy consumption of client objects as arg
+        """
+        self.update()
+        return types.SimpleNamespace(**self.model)
+
+    def wait_for_task(self, wait_ms=100):
+        if self.taskThread.is_alive():
+            # Schedule this method to be called again after wait_ms milliseconds
+            self.form.after(wait_ms, self.wait_for_task)
+
+    #
+    # callbacks
+    #
     def on_open_help(self):
         """
         - open help page in browser
@@ -514,17 +553,7 @@ class FormController:
         prompt = Prompt()
         prompt.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
 
-    def reflect(self):
-        self.load_preset(self.model)
-
-    def pack(self):
-        """
-        - for easy consumption of client objects as arg
-        """
-        self.update()
-        return types.SimpleNamespace(**self.model)
-
-    def reset(self):
+    def on_reset(self):
         for pg in self.form.pages.values():
             for entry in pg.winfo_children():
                 entry.reset()
@@ -535,14 +564,14 @@ class FormController:
         """
         # lambda wrapper ensures "self" is captured by threading as a context
         # otherwise ui thread still blocks
-        if self.workerThread and self.workerThread.is_alive():
+        if self.taskThread and self.taskThread.is_alive():
             return
         self.update()
-        self.stopEvent.clear()
-        self.workerThread = threading.Thread(target=lambda: self.run_background(), daemon=True)
-        self.workerThread.start()
+        self.taskStopEvent.clear()
+        self.taskThread = threading.Thread(target=lambda: self.run_task(), daemon=True)
+        self.taskThread.start()
 
-    def run_background(self):
+    def run_task(self):
         """
         - override this in app
         - run in background thread to avoid blocking UI
@@ -553,10 +582,9 @@ class FormController:
         """
         - cancelling a running background task
         """
-        # self.on_quit()
-        if self.workerThread and self.workerThread.is_alive():
-            self.stopEvent.set()
-            self.wait_for_thread_exit()
+        if self.taskThread and self.taskThread.is_alive():
+            self.taskStopEvent.set()
+            self.wait_for_task()
 
     def on_quit(self, event=None):
         """
@@ -565,31 +593,52 @@ class FormController:
           - although usually we avoid view ops in controller
         - override term() in app
         """
-        if self.workerThread and self.workerThread.is_alive():
-            self.stopEvent.set()
-            self.wait_for_thread_exit()
-        self.on_term()
+        if not self.on_shutdown():
+            # user cancelled
+            return
         self.form.master.quit()
 
-    def wait_for_thread_exit(self, wait_ms=100):
-        if self.workerThread.is_alive():
-            # Schedule this method to be called again after wait_ms milliseconds
-            self.form.after(wait_ms, self.wait_for_thread_exit)
-
-    def on_activate(self, event=None):
+    def on_startup(self):
         """
-        - binding of <Expose> event as logical initialization
-        - called whenever root window is partially visible, i.e., foregrounded
-        - controller can start retrieving entries
+        - called just before root.mainloop(), after all fields are initialized
+        - so that parameters can be used for the first time
         - override this in app
         """
         pass
 
-    def on_term(self, event=None):
+    def on_shutdown(self) -> bool:
+        """
+        - custom callback before quitting the main window
+        - needs user confirmation
+        - subclass this and call super, while checking user confirmation with early out
+        """
+        if not self.taskThread or not self.taskThread.is_alive():
+            # task not running, safe to continue to quit
+            return True
+        prompt = Prompt()
+        if not prompt.warning('Quitting a running task may cause damage.', 'Quit anyways?', confirm=True):
+            # user cancelled
+            return False
+        self.taskStopEvent.set()  # progressbar needs to be stopped
+        # task should have received stop event, let's wait for it to end
+        # it may choose a safe-quit path, but maybe not (damage)
+        self.wait_for_task()
+        return True
+
+    def on_during_activate(self, event=None):
+        """
+        - binding of <Map> event as logical initialization
+        - called whenever the root window is partially visible, i.e., foregrounded
+        - controller can now retrieve entries
+        - override this in app
+        """
+        pass
+
+    def on_during_deactivate(self, event=None):
         """
         - binding of <Destroy> event as logical termination
-        - called AFTER triggering WM_DELETE_WINDOW
-        - override this in app
+        - called AFTER triggering WM_DELETE_WINDOW, per frame
+        - overrides this in app
         """
         pass
 
@@ -601,11 +650,11 @@ class FormActionBar(ttk.Frame):
         self.controller = controller
         # occupy the entire width
         # new buttons will be added to the right
-        self.resetBtn = ttk.Button(self, text="Reset", command=self.on_reset_entries)
+        self.resetBtn = ttk.Button(self, text="Reset", command=self.on_reset)
         self.separator = ttk.Separator(self, orient="horizontal")
         # Create Cancel and Submit buttons
-        self.cancelBtn = ttk.Button(self, text="Cancel", command=self.on_cancel)
-        self.submitBtn = ttk.Button(self, text="Submit", command=self.on_submit, cursor='hand2')
+        self.cancelBtn = ttk.Button(self, text="Stop", command=self.on_cancel)
+        self.submitBtn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2')
         # layout: keep the order
         self.separator.pack(fill="x")
         # left-most must pack after separator to avoid occluding the border
@@ -617,27 +666,14 @@ class FormActionBar(ttk.Frame):
     def layout(self):
         self.pack(side="bottom", fill="x")
 
-    def submit(self, event=None):
-        """for debugging only"""
-        self.controller.update()
-        formatted_data = json.dumps(self.controller.model, indent=4)
-        tkmsgbox.showinfo("Submitted Data", formatted_data)
-
-    def on_reset_entries(self, event=None):
-        self.controller.reset()
+    def on_reset(self, event=None):
+        self.controller.on_reset()
 
     def on_cancel(self, event=None):
         self.controller.on_cancel()
 
     def on_submit(self, event=None):
         self.controller.on_submit()
-
-
-class OnOffActionBar(FormActionBar):
-    def __init__(self, master, controller, *args, **kwargs):
-        super().__init__(master, controller, *args, **kwargs)
-        self.submitBtn.configure(text='Start')
-        self.cancelBtn.configure(text='Stop')
 
 
 class WaitBar(ttk.Frame):
@@ -655,6 +691,7 @@ class WaitBar(ttk.Frame):
         self.stage = tk.StringVar(name='stage', value='')
         self.bar = ttk.Progressbar(self, orient="horizontal", mode="indeterminate")
         self.label = ttk.Label(self.bar, textvariable=self.stage, text='...', foreground='white', background='black')
+        self.taskStopEvent = Globals.taskStopEvent
         self.layout()
 
     def layout(self):
@@ -670,15 +707,22 @@ class WaitBar(ttk.Frame):
         - app pushes special messages to mark progress start/stop
         """
         while self.queue.qsize():
+            if self._scheduled_to_stop():
+                return
             msg = self.queue.get(0)
             cmd = msg[0]
             if cmd == '/start':
                 self.bar.start()
+                self.master.update_idletasks()
             elif cmd == '/stop':
                 self.bar.stop()
+                self.master.update_idletasks()
             else:
                 raise NotImplementedError(f'Unexpected progress instruction: {cmd}')
         self.after(wait_ms, self.poll)
+
+    def _scheduled_to_stop(self):
+        return self.taskStopEvent.is_set()
 
 
 class ProgressBar(WaitBar):

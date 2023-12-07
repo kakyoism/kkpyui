@@ -38,10 +38,10 @@ def main():
         def __init__(self, fm=None, model=None):
             super().__init__(fm, model)
             self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
-            self.playing = False
             self.initialized = False
+            self.playing = False
 
-        def on_submit(self, event=None):
+        def run_task(self, event=None):
             """
             - assume csound has started
             """
@@ -53,29 +53,28 @@ def main():
             self.sender.send_message('/frequency', self.model['frequency'])
             self.sender.send_message('/gain', self.model['gain'])
             self.sender.send_message('/play', 1)
-            ui.Globals.progressQueue.put(('/start', 0, 'Playing ...'))
+            self.start_progress()
             self.playing = True
             return True
 
         def on_cancel(self, event=None):
             self.sender.send_message('/play', 0)
-            ui.Globals.progressQueue.put(('/stop', 100, 'Stopped'))
+            self.stop_progress()
             time.sleep(0.1)
             self.playing = False
 
-        def on_activate(self, event=None):
-            super().on_activate()
-            if self.initialized:
-                return
-            self.initialized = True
+        def on_startup(self):
             self.update()
             cmd = ['csound', self.model['engine'][0], '-odac']
             util.run_daemon(cmd)
             # time.sleep(0.8)
 
-        def on_term(self, event=None):
+        def on_shutdown(self, event=None) -> bool:
+            if not super().on_shutdown():
+                return False
             self.on_cancel()
             util.kill_process_by_name('csound')
+            return True
 
         def on_freq_changed(self, name, var, index, mode):
             print(f'{name=}={var.get()}, {index=}, {mode=}')
@@ -95,7 +94,8 @@ def main():
     ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'icon.png'))
     form = ui.Form(ui.Globals.root, ['general'])
     ctrlr = OscillatorController(form)
-    ui.Globals.root.bind_events(ctrlr)
+    ui.Globals.root.set_controller(ctrlr)
+    ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     page = form.pages['general']
     # Adding widgets to pages
@@ -106,7 +106,7 @@ def main():
     oscillator_entry.set_tracer(ctrlr.on_oscillator_changed)
     freq_entry.set_tracer(ctrlr.on_freq_changed)
     gain_entry.set_tracer(ctrlr.on_gain_changed)
-    action_bar = ui.OnOffActionBar(ui.Globals.root, ctrlr)
+    action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
     wait_bar = ui.WaitBar(ui.Globals.root, ui.Globals.progressQueue)
     wait_bar.poll()
     ui.Globals.root.mainloop()

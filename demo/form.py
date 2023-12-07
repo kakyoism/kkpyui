@@ -27,7 +27,7 @@ class MyController(ui.FormController):
         super().__init__(*args, **kwargs)
         self.prompt = ui.Prompt()
 
-    def run_background(self):
+    def run_task(self):
         """
         - override this in app
         - run in background thread to avoid blocking UI
@@ -41,7 +41,7 @@ class MyController(ui.FormController):
                 self.stop_progress()
                 return
         self.stop_progress()
-        out = self.pack()
+        out = self.get_latest_model()
         self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
 
     def on_open_help(self):
@@ -61,7 +61,8 @@ def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
     form = ui.Form(ui.Globals.root, ['profile', 'plot'])
     ctrlr = MyController(form)
-    ui.Globals.root.bind_events(ctrlr)
+    ui.Globals.root.set_controller(ctrlr)
+    ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     # Adding widgets to pages
     pg1 = form.pages['profile']
