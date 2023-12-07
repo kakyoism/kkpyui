@@ -22,7 +22,7 @@ import kkpyui as ui
 import kkpyutil as util
 
 
-class MyController(ui.FormController):
+class Controller(ui.FormController):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.prompt = ui.Prompt()
@@ -60,7 +60,7 @@ class MyController(ui.FormController):
 def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
     form = ui.Form(ui.Globals.root, ['profile', 'plot'])
-    ctrlr = MyController(form)
+    ctrlr = Controller(form)
     ui.Globals.root.set_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
