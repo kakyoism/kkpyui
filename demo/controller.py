@@ -20,8 +20,8 @@ sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/../src'))
 import kkpyui as ui
 
 
-def main():
-    class OscillatorController(ui.FormController):
+
+class Controller(ui.FormController):
         """
         - assume csound is installed and in PATH
         - assume csound script is in the same directory as this file
@@ -91,9 +91,11 @@ def main():
             self.sender.send_message('/oscillator', var.get())
             self.sender.send_message('/play', 1)
 
+
+def main():
     ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'icon.png'))
     form = ui.Form(ui.Globals.root, ['general'])
-    ctrlr = OscillatorController(form)
+    ctrlr = Controller(form)
     ui.Globals.root.set_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
