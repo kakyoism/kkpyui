@@ -63,7 +63,6 @@ class Controller(ui.FormController):
         self.playing = False
 
     def on_startup(self):
-        self.update_model()
         cmd = ['csound', self.model['engine'][0], '-odac']
         util.run_daemon(cmd)
         # time.sleep(0.8)

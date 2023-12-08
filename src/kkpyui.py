@@ -4,7 +4,7 @@ import queue
 import threading
 import tkinter as tk
 import types
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, scrolledtext as tktext
 from tkinter import messagebox as tkmsgbox
 # 3rd party
 import kkpyutil as util
@@ -975,43 +975,31 @@ class TextEntry(Entry):
     def __init__(self, master: Page, key, text, default, doc, **kwargs):
         """there is no ttk.Text"""
 
-        super().__init__(master, key, text, tk.Text, default, doc, height=4, **kwargs)
+        super().__init__(master, key, text, tktext.ScrolledText, default, doc, height=4, wrap=tk.WORD, **kwargs)
         self.data = self._init_data(tk.StringVar)
-        # because the binding definition below will trigger callbacks,
-        # we must avoid feedback loop by setting this flag right before binding
-        self._updatingModel = True
-        self.field.bind("<<Modified>>", self._on_text_changed)
+        self.field.bind("<KeyRelease>", self._on_text_changed)
+        self.field.bind("<FocusOut>", self._on_text_changed)
         self.data.trace_add("write", self._on_data_changed)
         self.field.insert("1.0", default)
         # allow paste
         self.actionBtn = ttk.Button(self, text="Paste", command=self.on_action)
         self.actionBtn.pack(side='bottom', expand=True, padx=5, anchor="w")
 
-    def set_data(self, value):
-        super().set_data(value)
-        self._on_data_changed()
-
     def _on_data_changed(self, *args):
         """
         - update view on model changes
         """
-        self._updatingModel = True
-        seen = self.field.get("1.0", tk.END).strip()
-        to_see = self.data.get()
-        if seen != to_see:
+        text_content = self.data.get()
+        if self.field.get("1.0", tk.END).strip() != text_content:
             self.field.delete("1.0", tk.END)
-            self.field.insert("1.0", to_see)
-        self._updatingModel = False
+            self.field.insert("1.0", text_content)
 
     def _on_text_changed(self, event):
         """
         - update model on user editing
         - must avoid feedback loop when text changes are caused by model changes
         """
-        if self._updatingModel:
-            return
-        self.data.set(self.field.get("1.0", tk.END))
-        self.field.edit_modified(False)
+        self.data.set(self.field.get("1.0", tk.END).strip())
 
     def on_action(self):
         """
