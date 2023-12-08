@@ -392,6 +392,8 @@ class Entry(ttk.Frame):
         # maximize context-menu hitbox
         self.field.bind("<Button-2>", self.show_context_menu)
         self.label.bind("<Button-2>", self.show_context_menu)
+        # getting out of focus so that key strokes will not be intercepted by the entry
+        self.field.bind("<Escape>", lambda event: Globals.root.focus_set())
 
     def _init_data(self, var_cls):
         return var_cls(master=self, name=self.text, value=self.default)

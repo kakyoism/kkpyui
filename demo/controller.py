@@ -39,6 +39,7 @@ class Controller(ui.FormController):
         self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
         self.initialized = False
         self.playing = False
+        self.curEngine = None
 
     def run_task(self, event=None):
         """
@@ -47,6 +48,9 @@ class Controller(ui.FormController):
         if self.playing:
             return False
         self.update_model()
+        if self.curEngine != self.model['engine'][0]:
+            self.on_shutdown()
+            self.on_startup()
         options = ['Sine', 'Square', 'Sawtooth']
         self.sender.send_message('/oscillator', options.index(self.model['oscillator']))
         self.sender.send_message('/frequency', self.model['frequency'])
@@ -63,8 +67,10 @@ class Controller(ui.FormController):
         self.playing = False
 
     def on_startup(self):
+        assert osp.isfile(self.model['engine'][0])
         cmd = ['csound', self.model['engine'][0], '-odac']
         util.run_daemon(cmd)
+        self.curEngine = self.model['engine'][0]
         # time.sleep(0.8)
 
     def on_shutdown(self, event=None) -> bool:
