@@ -745,6 +745,9 @@ class WaitBar(ttk.Frame):
                 return
             msg = self.queue.get(0)
             cmd = msg[0]
+            # CAUTION:
+            # - .start() and .stop() are used for indeterminate progress bars only
+            # - use .set() with determinate bars
             if cmd == '/start':
                 self.bar.start()
                 self.master.update_idletasks()
@@ -773,11 +776,7 @@ class ProgressBar(WaitBar):
         while self.queue.qsize():
             try:
                 cmd, value, text = self.queue.get_nowait()
-                if cmd == '/start':
-                    self.bar.start()
-                elif cmd == '/stop':
-                    self.bar.stop()
-                elif cmd == '/processing':
+                if cmd == '/processing':
                     self.progress.set(value)
                 self.stage.set(text)  # Update the label text
             except queue.Empty:
