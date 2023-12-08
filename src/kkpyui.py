@@ -633,7 +633,7 @@ class FormController:
 
     def on_startup(self):
         """
-        - called just before showing root window, after all fields are initialized
+        - called just before showing root window (<Map>, on_activate()), after all fields are initialized
         - so that fields can be used here for the first time
         """
         pass
