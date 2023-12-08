@@ -10,7 +10,6 @@ with builtin support for:
 - keyboard shortcuts for running and quitting
 """
 import json
-import logging
 import os.path as osp
 import sys
 import time
@@ -27,23 +26,6 @@ class Controller(ui.FormController):
         super().__init__(*args, **kwargs)
         self.prompt = ui.Prompt()
 
-    def run_task(self):
-        """
-        - override this in app
-        - run in background thread to avoid blocking UI
-        """
-        self.start_progress()
-        for p in range(101):
-            # Simulate a task
-            time.sleep(0.01)
-            self.set_progress('/processing', p, 'Processing ...')
-            if self.scheduled_to_stop():
-                self.stop_progress()
-                return
-        self.stop_progress()
-        out = self.get_latest_model()
-        self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
-
     def on_open_help(self):
         util.alert('Dev: Just use it! Trust yourself and the log!')
 
@@ -55,6 +37,23 @@ class Controller(ui.FormController):
 
     def on_report_issue(self):
         self.prompt.info('Dev: It\'s not a bug, it\'s a feature!')
+
+    def run_task(self):
+        """
+        - override this in app
+        - run in background thread to avoid blocking UI
+        """
+        self.start_progress()
+        for p in range(101):
+            # Simulate a task
+            time.sleep(0.01)
+            self.set_progress('/processing', p, 'Processing ...')
+            if self.is_scheduled_to_stop():
+                self.stop_progress()
+                return
+        self.stop_progress()
+        out = self.get_latest_model()
+        self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
 
 
 def main():

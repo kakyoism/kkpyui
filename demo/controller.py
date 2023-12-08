@@ -20,76 +20,75 @@ sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/../src'))
 import kkpyui as ui
 
 
-
 class Controller(ui.FormController):
+    """
+    - assume csound is installed and in PATH
+    - assume csound script is in the same directory as this file
+    - script runs OSC server and listens to OSC messages below:
+      - kk OSClisten gilisten, "/frequency", "f", gkfreq
+      - kk OSClisten gilisten, "/gain", "f", gkgaindb
+      - kk OSClisten gilisten, "/oscillator", "i", gkwavetype
+      - kk OSClisten gilisten, "/duration", "f", gkdur
+      - kk OSClisten gilisten, "/play", "i", gkplay
+      - kk OSClisten gilisten, "/stop", "i", gkstop
+      - kk OSClisten gilisten, "/quit", "i", gkquit
+    """
+
+    def __init__(self, fm=None, model=None):
+        super().__init__(fm, model)
+        self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
+        self.initialized = False
+        self.playing = False
+
+    def run_task(self, event=None):
         """
-        - assume csound is installed and in PATH
-        - assume csound script is in the same directory as this file
-        - script runs OSC server and listens to OSC messages below:
-          - kk OSClisten gilisten, "/frequency", "f", gkfreq
-          - kk OSClisten gilisten, "/gain", "f", gkgaindb
-          - kk OSClisten gilisten, "/oscillator", "i", gkwavetype
-          - kk OSClisten gilisten, "/duration", "f", gkdur
-          - kk OSClisten gilisten, "/play", "i", gkplay
-          - kk OSClisten gilisten, "/stop", "i", gkstop
-          - kk OSClisten gilisten, "/quit", "i", gkquit
+        - assume csound has started
         """
+        if self.playing:
+            return False
+        self.update_model()
+        options = ['Sine', 'Square', 'Sawtooth']
+        self.sender.send_message('/oscillator', options.index(self.model['oscillator']))
+        self.sender.send_message('/frequency', self.model['frequency'])
+        self.sender.send_message('/gain', self.model['gain'])
+        self.sender.send_message('/play', 1)
+        self.start_progress()
+        self.playing = True
+        return True
 
-        def __init__(self, fm=None, model=None):
-            super().__init__(fm, model)
-            self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
-            self.initialized = False
-            self.playing = False
+    def on_cancel(self, event=None):
+        self.sender.send_message('/play', 0)
+        self.stop_progress()
+        time.sleep(0.1)
+        self.playing = False
 
-        def run_task(self, event=None):
-            """
-            - assume csound has started
-            """
-            if self.playing:
-                return False
-            self.update()
-            options = ['Sine', 'Square', 'Sawtooth']
-            self.sender.send_message('/oscillator', options.index(self.model['oscillator']))
-            self.sender.send_message('/frequency', self.model['frequency'])
-            self.sender.send_message('/gain', self.model['gain'])
-            self.sender.send_message('/play', 1)
-            self.start_progress()
-            self.playing = True
-            return True
+    def on_startup(self):
+        self.update_model()
+        cmd = ['csound', self.model['engine'][0], '-odac']
+        util.run_daemon(cmd)
+        # time.sleep(0.8)
 
-        def on_cancel(self, event=None):
-            self.sender.send_message('/play', 0)
-            self.stop_progress()
-            time.sleep(0.1)
-            self.playing = False
+    def on_shutdown(self, event=None) -> bool:
+        if not super().on_shutdown():
+            return False
+        self.on_cancel()
+        util.kill_process_by_name('csound')
+        return True
 
-        def on_startup(self):
-            self.update()
-            cmd = ['csound', self.model['engine'][0], '-odac']
-            util.run_daemon(cmd)
-            # time.sleep(0.8)
+    def on_freq_changed(self, name, var, index, mode):
+        print(f'{name=}={var.get()}, {index=}, {mode=}')
+        self.sender.send_message('/frequency', var.get())
 
-        def on_shutdown(self, event=None) -> bool:
-            if not super().on_shutdown():
-                return False
-            self.on_cancel()
-            util.kill_process_by_name('csound')
-            return True
+    def on_gain_changed(self, name, var, index, mode):
+        print(f'{name=}={var.get()}, {index=}, {mode=}')
+        self.sender.send_message('/gain', var.get())
 
-        def on_freq_changed(self, name, var, index, mode):
-            print(f'{name=}={var.get()}, {index=}, {mode=}')
-            self.sender.send_message('/frequency', var.get())
-
-        def on_gain_changed(self, name, var, index, mode):
-            print(f'{name=}={var.get()}, {index=}, {mode=}')
-            self.sender.send_message('/gain', var.get())
-
-        def on_oscillator_changed(self, name, var, index, mode):
-            print(f'{name=}={var.get()}, {index=}, {mode=}')
-            self.sender.send_message('/play', 0)
-            time.sleep(0.1)
-            self.sender.send_message('/oscillator', var.get())
-            self.sender.send_message('/play', 1)
+    def on_oscillator_changed(self, name, var, index, mode):
+        print(f'{name=}={var.get()}, {index=}, {mode=}')
+        self.sender.send_message('/play', 0)
+        time.sleep(0.1)
+        self.sender.send_message('/oscillator', var.get())
+        self.sender.send_message('/play', 1)
 
 
 def main():

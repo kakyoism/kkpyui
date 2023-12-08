@@ -69,6 +69,8 @@ class Root(tk.Tk):
         if icon:
             self.iconphoto(True, tk.PhotoImage(file=icon))
         self.controller = None
+        # used by on_during_deactivate only for the shutdown sequence only
+        self.isActive = False
         self._auto_focus()
 
     def set_controller(self, controller):
@@ -93,8 +95,8 @@ class Root(tk.Tk):
         # Expose: called even when slider is dragged, so we don't use it
         # Map: triggered when windows are visible, called every frame
         # Destroy: triggered when windows are closed, called every frame
-        self.bind('<Map>', lambda event: self.controller.on_during_activate(event))
-        self.bind('<Destroy>', lambda event: self.controller.on_during_deactivate(event))
+        self.bind('<Map>', lambda event: self.on_during_activate(event))
+        self.bind('<Destroy>', lambda event: self.on_during_deactivate(event))
         # startup event: init(), must be called by client
         # bind X button to quit the program
         self.protocol('WM_DELETE_WINDOW', self.controller.on_quit)
@@ -116,8 +118,28 @@ class Root(tk.Tk):
         - prepend custom pre-startup event
         - this solves the problem where <Map> event, being a per-frame activation event, gets called many times instead of just once, which is redundant for startup logic
         """
+        self.controller.update_model()
         self.after(0, self.controller.on_startup)
         super().mainloop()
+
+    def on_during_activate(self, event):
+        """
+        - called every frame during the root window display process, i.e., from background to foreground
+        - but since app-level startup tasks only need to be done once, we bootstrap the frame-behavior for controller to perform app-level tasks
+        """
+        if self.isActive:
+            return
+        self.controller.on_activate(event)
+        self.isActive = True
+
+    def on_during_deactivate(self, event):
+        """
+        - similar to on_during_activate(), but for shutdown
+        """
+        if not self.isActive:
+            return
+        self.controller.on_deactivate(event)
+        self.isActive = False
 
 
 class Prompt:
@@ -411,11 +433,14 @@ class FormMenu(tk.Menu):
         self.fileMenu = tk.Menu(self, tearoff=False)
         self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
         self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
-        self.fileMenu.add_command(label="Exit", command=self.on_quit)
+        self.fileMenu.add_command(label="Quit", command=self.on_quit, accelerator="Ctrl+Q")
+        self.master.bind("<Control-q>", lambda event: self.on_quit())
+        self.master.bind("<Control-Q>", lambda event: self.on_quit())
         self.helpMenu = tk.Menu(self, tearoff=False)
-        self.helpMenu.add_command(label="Help", command=self.on_open_help)
+        self.helpMenu.add_command(label="Help", command=self.on_open_help, accelerator="F1")
         self.helpMenu.add_command(label="Open Log", command=self.on_open_log)
         self.helpMenu.add_command(label="Report A Problem", command=self.on_report_issue)
+        self.master.bind("<F1>", lambda event: self.on_open_help())
         self.add_cascade(label="File", menu=self.fileMenu)
         self.add_cascade(label="Help", menu=self.helpMenu)
         self.controller = controller
@@ -467,12 +492,15 @@ class FormController:
         self.taskThread = None
         self.taskStopEvent = Globals.taskStopEvent
 
-    def update(self):
+    def update_model(self):
         config_by_page = {
             pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children()}
             for title, pg in self.form.pages.items()
         }
         self.model = {k: v for entries in config_by_page.values() for k, v in entries.items()}
+
+    def update_view(self):
+        self.load_preset(self.model)
 
     def load_preset(self, preset):
         """
@@ -501,10 +529,7 @@ class FormController:
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
         util.save_json(preset, config)
 
-    def reflect(self):
-        self.load_preset(self.model)
-
-    def scheduled_to_stop(self):
+    def is_scheduled_to_stop(self):
         return self.taskStopEvent.is_set()
 
     def start_progress(self):
@@ -520,7 +545,7 @@ class FormController:
         """
         - for easy consumption of client objects as arg
         """
-        self.update()
+        self.update_model()
         return types.SimpleNamespace(**self.model)
 
     def wait_for_task(self, wait_ms=100):
@@ -533,15 +558,18 @@ class FormController:
     #
     def on_open_help(self):
         """
-        - open help page in browser
+        - open help doc, e.g., webpage, local file
+        - subclass this for your own 
         """
         prompt = Prompt()
         prompt.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
 
     def on_open_log(self):
         """
-        - logging scheme must be defined by the application, e.g., subclassing the controller,
-        - usually it's as simple as opening a file path using the default browser
+        - open log or app session data is hard to generalize
+        - subclass this to use app-level logging scheme
+        - e.g., opening a log file using the default browser
+        - e.g., opening a folder containing the entire diagnostics
         """
         prompt = Prompt()
         prompt.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
@@ -549,32 +577,38 @@ class FormController:
     def on_report_bug(self):
         """
         - report bug to the developer
+        - subclass this
         """
         prompt = Prompt()
         prompt.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
 
     def on_reset(self):
+        """
+        - reset all form fields to default
+        - usually can be used as is, no need to override
+        """
         for pg in self.form.pages.values():
             for entry in pg.winfo_children():
                 entry.reset()
 
     def on_submit(self, event=None):
         """
-        - subclass this to implement custom logic
+        - main action to launch the background task
+        - usually can be used as is, no need to override
         """
-        # lambda wrapper ensures "self" is captured by threading as a context
-        # otherwise ui thread still blocks
         if self.taskThread and self.taskThread.is_alive():
             return
-        self.update()
+        self.update_model()
         self.taskStopEvent.clear()
+        # lambda wrapper ensures "self" is captured by threading as a context
+        # otherwise ui thread still blocks
         self.taskThread = threading.Thread(target=lambda: self.run_task(), daemon=True)
         self.taskThread.start()
 
     def run_task(self):
         """
         - override this in app
-        - run in background thread to avoid blocking UI
+        - run in background thread to unblock UI
         """
         raise NotImplementedError('subclass this!')
 
@@ -588,10 +622,9 @@ class FormController:
 
     def on_quit(self, event=None):
         """
-        - CAUTION:
-          - for sharing binding between menu, x-button, and another ui for quitting
-          - although usually we avoid view ops in controller
-        - override term() in app
+        CAUTION:
+        - usually we avoid direct view-ops in controller
+        - but here it is necessary for sharing binding between menu, x-button, and other quitting devi
         """
         if not self.on_shutdown():
             # user cancelled
@@ -600,23 +633,24 @@ class FormController:
 
     def on_startup(self):
         """
-        - called just before root.mainloop(), after all fields are initialized
-        - so that parameters can be used for the first time
-        - override this in app
+        - called just before showing root window, after all fields are initialized
+        - so that fields can be used here for the first time
         """
         pass
 
     def on_shutdown(self) -> bool:
         """
-        - custom callback before quitting the main window
-        - needs user confirmation
-        - subclass this and call super, while checking user confirmation with early out
+        - called just before quitting
+        - safe-schedules shutdown with prompt and early-outs if user cancels
+        - subclass this for post-ops
         """
         if not self.taskThread or not self.taskThread.is_alive():
             # task not running, safe to continue to quit
+            self.taskStopEvent.set()  # progressbar needs to be stopped
             return True
         prompt = Prompt()
-        if not prompt.warning('Quitting a running task may cause damage.', 'Quit anyways?', confirm=True):
+        # Make default behavior a safe bet
+        if prompt.warning('Quitting a running task may cause damage. Click Yes to wait for it to finish, or No to force-quit', 'Wait for it to finish.', question='Keep waiting?', confirm=True):
             # user cancelled
             return False
         self.taskStopEvent.set()  # progressbar needs to be stopped
@@ -625,22 +659,22 @@ class FormController:
         self.wait_for_task()
         return True
 
-    def on_during_activate(self, event=None):
+    def on_activate(self, event=None):
         """
         - binding of <Map> event as logical initialization
-        - called whenever the root window is partially visible, i.e., foregrounded
-        - controller can now retrieve entries
-        - override this in app
+        - called once when the root window displays, i.e., from background to foregrounded
         """
         pass
 
-    def on_during_deactivate(self, event=None):
+    def on_deactivate(self, event=None):
         """
         - binding of <Destroy> event as logical termination
-        - called AFTER triggering WM_DELETE_WINDOW, per frame
-        - overrides this in app
+        - called AFTER triggering WM_DELETE_WINDOW
+        - called once when the root window disappears, from foreground to background
+        - on macOS: called on Cmd+Q key-combo, which quits python launcher and bypasses WM_DELETE_WINDOW
         """
-        pass
+        if util.PLATFORM == 'Darwin':
+            self.on_quit()
 
 
 class FormActionBar(ttk.Frame):
@@ -702,12 +736,12 @@ class WaitBar(ttk.Frame):
         self.label.place(relx=0.5, rely=0.5, anchor='center')
         self.pack(side='bottom', fill='both', expand=False)
 
-    def poll(self, wait_ms=50):
+    def poll(self, wait_ms=100):
         """
         - app pushes special messages to mark progress start/stop
         """
         while self.queue.qsize():
-            if self._scheduled_to_stop():
+            if self._is_scheduled_to_stop():
                 return
             msg = self.queue.get(0)
             cmd = msg[0]
@@ -721,7 +755,7 @@ class WaitBar(ttk.Frame):
                 raise NotImplementedError(f'Unexpected progress instruction: {cmd}')
         self.after(wait_ms, self.poll)
 
-    def _scheduled_to_stop(self):
+    def _is_scheduled_to_stop(self):
         return self.taskStopEvent.is_set()
 
 
@@ -907,7 +941,7 @@ class MultiOptionEntry(Entry):
         - serialized data: selected subset
         """
         for opt in self.data:
-            self.data[opt].set(1 if opt in values else 0)
+            self.data[opt].set(opt in values)
 
     def _select_all(self):
         for k, v in self.data.items():

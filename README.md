@@ -27,3 +27,15 @@ Tkinter-based GUI widget library for building small tool applications
 - Saving and loading presets
 
 - Customizable parameter tracers
+
+## Demo
+```sh
+cd /path/to/kkpyui
+poetry install
+
+# run form demo
+poetry run python demo/form.py
+
+# run controller demo
+poetry run python demo/controller.py
+```
