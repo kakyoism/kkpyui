@@ -368,14 +368,14 @@ class Entry(ttk.Frame):
     - page is responsible for lay out entries
     """
 
-    def __init__(self, master: Page, key, text, widget_constructor, default, doc, configable=True, **widget_kwargs):
+    def __init__(self, master: Page, key, text, widget_constructor, default, doc, presetable=True, **widget_kwargs):
         super().__init__(master)
         assert isinstance(self.master, Page)
         self.master.add([self])
         self.key = key
         self.text = text
         self.default = default
-        self.isConfigable = configable
+        self.isPresetable = presetable
         # model-binding
         self.data = None
         # title
@@ -526,7 +526,7 @@ class FormController:
         - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
         """
         config_by_page = {
-            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isConfigable}
+            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isPresetable}
             for title, pg in self.form.pages.items()
         }
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
@@ -793,8 +793,8 @@ class IntEntry(Entry):
     - ttk.Scale is intended for a ratio only; the handle does not move for negative numbers
     - must bind a separate variable to the slider to ensure slider-clicking works
     """
-    def __init__(self, master: Page, key, text, default, doc, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
-        super().__init__(master, key, text, ttk.Frame, default, doc, **kwargs)
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
+        super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
         # model-binding
         self.data = self._init_data(tk.IntVar)
         # view
@@ -839,8 +839,8 @@ class FloatEntry(Entry):
     """
     - must NOT inherit from IntEntry to avoid slider malfunction
     """
-    def __init__(self, master: Page, key, text, default, doc, minmax, step=0.1, precision=2, **kwargs):
-        super().__init__(master, key, text, ttk.Frame, default, doc, **kwargs)
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=0.1, precision=2, **kwargs):
+        super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
         self.precision = precision
         # model-binding
         self.data = self._init_data(tk.DoubleVar)
@@ -884,8 +884,8 @@ class SingleOptionEntry(Entry):
     - because most clients of optionEntry use its index instead of string value, e.g., csound oscillator waveform is defined by integer among a list of options
     - we must bind to index instead of value for model-binding
     """
-    def __init__(self, master: Page, key, text, options, default, doc, **kwargs):
-        super().__init__(master, key, text, ttk.Combobox, default, doc, values=options, **kwargs)
+    def __init__(self, master: Page, key, text, options, default, doc, presetable=True, **kwargs):
+        super().__init__(master, key, text, ttk.Combobox, default, doc, presetable, values=options, **kwargs)
         # model-binding
         self.data = self._init_data(tk.StringVar)
         self.field.configure(textvariable=self.data, state='readonly')
@@ -918,8 +918,8 @@ class SingleOptionEntry(Entry):
 
 
 class MultiOptionEntry(Entry):
-    def __init__(self, master: Page, key, text, options, default, doc, **kwargs):
-        super().__init__(master, key, text, ttk.Menubutton, default, doc, **kwargs)
+    def __init__(self, master: Page, key, text, options, default, doc, presetable=True, **kwargs):
+        super().__init__(master, key, text, ttk.Menubutton, default, doc, presetable=True, **kwargs)
         self.data = {opt: tk.BooleanVar(name=opt, value=opt in default) for opt in options}
         self.field.configure(text='Select one ore more ...')
         # build option menu
@@ -968,17 +968,17 @@ class MultiOptionEntry(Entry):
 
 
 class BoolEntry(Entry):
-    def __init__(self, master: Page, key, text, default, doc, **kwargs):
-        super().__init__(master, key, text, ttk.Checkbutton, default, doc, **kwargs)
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, **kwargs):
+        super().__init__(master, key, text, ttk.Checkbutton, default, doc, presetable, **kwargs)
         self.data = self._init_data(tk.BooleanVar)
         self.field.configure(variable=self.data)
 
 
 class TextEntry(Entry):
-    def __init__(self, master: Page, key, text, default, doc, **kwargs):
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, **kwargs):
         """there is no ttk.Text"""
 
-        super().__init__(master, key, text, tktext.ScrolledText, default, doc, height=4, wrap=tk.WORD, **kwargs)
+        super().__init__(master, key, text, tktext.ScrolledText, default, doc, presetable, height=4, wrap=tk.WORD, **kwargs)
         self.data = self._init_data(tk.StringVar)
         self.field.bind("<KeyRelease>", self._on_text_changed)
         self.field.bind("<FocusOut>", self._on_text_changed)
@@ -1019,8 +1019,8 @@ class FileEntry(TextEntry):
     - to specify a default file-extension, place it as the head of file_patterns
     - always return a list even when there is only one; so use self.data[0] on app side for a single-file case
     """
-    def __init__(self, master: Page, key, path, default, doc, file_patterns=(), start_dir=util.get_platform_home_dir(), **kwargs):
-        super().__init__(master, key, path, default, doc, **kwargs)
+    def __init__(self, master: Page, key, path, default, doc, presetable=True, file_patterns=(), start_dir=util.get_platform_home_dir(), **kwargs):
+        super().__init__(master, key, path, default, doc, presetable, **kwargs)
         self.filePats = file_patterns
         self.startDir = start_dir
         self._fix_platform_patterns()
@@ -1075,8 +1075,8 @@ class FolderEntry(TextEntry):
     - tkinter supports single-folder selection only
     - multiple folders can be pasted into the text field
     """
-    def __init__(self, master: Page, key, path, default, doc, start_dir=util.get_platform_home_dir(), **kwargs):
-        super().__init__(master, key, path, default, doc, **kwargs)
+    def __init__(self, master: Page, key, path, default, doc, presetable=True, start_dir=util.get_platform_home_dir(), **kwargs):
+        super().__init__(master, key, path, default, doc, presetable, **kwargs)
         self.startDir = start_dir
         self.actionBtn.configure(text='Browse ...')
 
@@ -1105,8 +1105,8 @@ class ListEntry(Entry):
     - checkbox to select one by one
     - batch-select: shift-select, control-select
     """
-    def __init__(self, master: Page, key, text, default, doc, **kwargs):
-        super().__init__(master, key, text, default, doc, **kwargs)
+    def __init__(self, master: Page, key, text, default, doc, presetable, **kwargs):
+        super().__init__(master, key, text, default, doc, presetable, **kwargs)
         self.loadBtn = ttk.Button(self, text="Load...", command=self.on_load)
         self.saveBtn = ttk.Button(self, text="Save...", command=self.on_save)
 
