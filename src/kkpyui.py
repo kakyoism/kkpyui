@@ -375,7 +375,7 @@ class Entry(ttk.Frame):
         self.key = key
         self.text = text
         self.default = default
-        self.isConfig = configable
+        self.isConfigable = configable
         # model-binding
         self.data = None
         # title
@@ -526,7 +526,7 @@ class FormController:
         - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
         """
         config_by_page = {
-            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isConfig}
+            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isConfigable}
             for title, pg in self.form.pages.items()
         }
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
