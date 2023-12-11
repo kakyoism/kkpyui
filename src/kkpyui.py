@@ -1095,3 +1095,23 @@ class FolderEntry(TextEntry):
         self.data.set(selected)
         # memorize last selected file's folder
         self.startDir = osp.dirname(selected)
+
+
+class ListEntry(Entry):
+    """
+    - add loose items by typing
+    - remove items by keystroke: delete key
+    - load items from a list file
+    - checkbox to select one by one
+    - batch-select: shift-select, control-select
+    """
+    def __init__(self, master: Page, key, text, default, doc, **kwargs):
+        super().__init__(master, key, text, default, doc, **kwargs)
+        self.loadBtn = ttk.Button(self, text="Load...", command=self.on_load)
+        self.saveBtn = ttk.Button(self, text="Save...", command=self.on_save)
+
+    def on_load(self):
+        pass
+
+    def on_save(self):
+        pass
