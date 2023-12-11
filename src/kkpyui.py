@@ -368,13 +368,14 @@ class Entry(ttk.Frame):
     - page is responsible for lay out entries
     """
 
-    def __init__(self, master: Page, key, text, widget_constructor, default, doc, **widget_kwargs):
+    def __init__(self, master: Page, key, text, widget_constructor, default, doc, configable=True, **widget_kwargs):
         super().__init__(master)
         assert isinstance(self.master, Page)
         self.master.add([self])
         self.key = key
         self.text = text
         self.default = default
+        self.isConfig = configable
         # model-binding
         self.data = None
         # title
@@ -525,8 +526,8 @@ class FormController:
         - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
         """
         config_by_page = {
-            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children()}
-            for title, pg in self.form.pages.items() if title != "input"
+            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isConfig}
+            for title, pg in self.form.pages.items()
         }
         config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
         util.save_json(preset, config)
