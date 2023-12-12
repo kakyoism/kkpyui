@@ -9,6 +9,7 @@ with builtin support for:
 - progress bar
 - keyboard shortcuts for running and quitting
 """
+import copy
 import json
 import os.path as osp
 import sys
@@ -52,13 +53,17 @@ class Controller(ui.FormController):
                 self.stop_progress()
                 return
         self.stop_progress()
-        out = self.get_latest_model()
-        self.prompt.info(f'{json.dumps(vars(out))}', confirm=True)
+        out = vars(self.get_latest_model())
+        dmp = json.dumps(out, indent=2)
+        self.prompt.info(f'{dmp}', confirm=True)
+        util.save_json(exported := osp.join(util.get_platform_tmp_dir(), 'form.out.json'), out)
+        self.model['export'] = copy.deepcopy([exported])
+        self.update_view()
 
 
 def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
-    form = ui.Form(ui.Globals.root, ['profile', 'plot'])
+    form = ui.Form(ui.Globals.root, ['profile', 'plot', 'output'])
     ctrlr = Controller(form)
     ui.Globals.root.set_controller(ctrlr)
     ui.Globals.root.bind_events()
@@ -66,10 +71,11 @@ def main():
     # Adding widgets to pages
     pg1 = form.pages['profile']
     pg2 = form.pages['plot']
+    pg3 = form.pages['output']
     name_wgt = ui.TextEntry(pg1, 'name', "Name", "Robin Sena", "text widget.")
-    age_wgt = ui.IntEntry(pg1, 'age', "Age", 15, "integer widget", (0, float('inf')))
-    height_wgt = ui.FloatEntry(pg1, 'height', "Height (m)", 1.68, "float widget", (0.0, 2.0), 0.01, 2)
-    weight_wgt = ui.FloatEntry(pg1, 'weight', "Weight (kg)", 51, "float widget", (50.2, 70.3), 0.1, 1)
+    age_wgt = ui.IntEntry(pg1, 'age', "Age", 15, "integer widget", True, (0, float('inf')))
+    height_wgt = ui.FloatEntry(pg1, 'height', "Height (m)", 1.68, "float widget", True, (0.0, 2.0), 0.01, 2)
+    weight_wgt = ui.FloatEntry(pg1, 'weight', "Weight (kg)", 51, "float widget", True, (50.2, 70.3), 0.1, 1)
     gender_wgt = ui.SingleOptionEntry(pg1, 'gender', "Gender", ["Male", "Female", "[Secret]"], "Female", "option widget")
     protagonist_wgt = ui.BoolEntry(pg1, 'is_protagonist', "Protagonist", True, "checkbox widget")
     bio_widget = ui.TextEntry(pg1, 'bio', "Bio", """Robin Sena (瀬名 ロビン, Sena Robin) is a soft-spoken 15-year-old Hunter and craft-user with pyrokinetic abilities. She was raised in a convent in Italy-(where she was taught how to use and control her craft '
@@ -78,6 +84,7 @@ def main():
                               'text widget.')
 
     occupation_wgt = ui.MultiOptionEntry(pg2, 'occupation', 'Occupation', ['Lead', 'Warrior', 'Wizard', 'Detective', 'Hacker', 'Clerk'], ['Wizard', 'Detective'], "option widget")
+    export_wgt = ui.FileEntry(pg3, 'export', '', '', 'Path to export file', False, [('JSON', '*.json'), ('All Files', '*.*')])
     action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
     progress_bar = ui.ProgressBar(ui.Globals.root, ui.Globals.progressQueue)
     progress_bar.poll()

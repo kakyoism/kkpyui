@@ -517,7 +517,9 @@ class FormController:
                 try:
                     entry.set_data(config[entry.key])
                 except KeyError as e:
-                    util.glogger.error(e)
+                    util.glogger.error(f'{entry.key=}, {entry.data.get()=}, {self.model=}: {e}')
+                except Exception as e:
+                    util.glogger.error(f'{entry.key=}, {entry.data.get()=}, {self.model=}: {e}')
 
     def save_preset(self, preset):
         """
@@ -978,39 +980,72 @@ class TextEntry(Entry):
     def __init__(self, master: Page, key, text, default, doc, presetable=True, **kwargs):
         """there is no ttk.Text"""
 
-        super().__init__(master, key, text, tktext.ScrolledText, default, doc, presetable, height=4, wrap=tk.WORD, **kwargs)
+        super().__init__(master, key, text, tktext.ScrolledText, default, doc, presetable, height=4, wrap=tk.WORD, undo=True, **kwargs)
         self.data = self._init_data(tk.StringVar)
         self.field.bind("<KeyRelease>", self._on_text_changed)
         self.field.bind("<FocusOut>", self._on_text_changed)
+        cmd_key = 'Command' if util.PLATFORM == 'Darwin' else 'Control'
+        self.field.bind(f"<{cmd_key}-z>", lambda event: self.undo())
+        self.field.bind(f"<Control-y>", lambda event: self.redo())
+        self.field.bind("<Command-Shift-z>", lambda event: self.redo())
+
         self.data.trace_add("write", self._on_data_changed)
         self.field.insert("1.0", default)
         # allow paste
-        self.actionBtn = ttk.Button(self, text="Paste", command=self.on_action)
-        self.actionBtn.pack(side='bottom', expand=True, padx=5, anchor="w")
+        btn_frame = ttk.Frame(self, padding=0)
+        btn_frame.pack(side='bottom', fill='x', expand=True)
+        self.primaryBtn = ttk.Button(btn_frame, text="Paste", command=self.on_primary_action)
+        self.primaryBtn.pack(side='left', padx=5, anchor="w")
+        self.secondaryBtn = ttk.Button(btn_frame, text="Copy", command=self.on_secondary_action)
+        self.secondaryBtn.pack(side='left', padx=5, anchor="w")
+        # helper
+        self.lastContent = default
+
+    def undo(self):
+        try:
+            self.field.edit_undo()
+        except tk.TclError:
+            pass  # Handle exception if nothing to undo
+
+    def redo(self):
+        try:
+            self.field.edit_redo()
+        except tk.TclError:
+            pass  # Handle exception if nothing to redo
 
     def _on_data_changed(self, *args):
         """
         - update view on model changes
         """
-        text_content = self.data.get()
-        if self.field.get("1.0", tk.END).strip() != text_content:
+        self.lastContent = self.data.get()
+        if self.field.get("1.0", tk.END).strip() != self.lastContent:
             self.field.delete("1.0", tk.END)
-            self.field.insert("1.0", text_content)
+            self.field.insert("1.0", self.lastContent)
 
     def _on_text_changed(self, event):
         """
         - update model on user editing
         - must avoid feedback loop when text changes are caused by model changes
         """
-        self.data.set(self.field.get("1.0", tk.END).strip())
+        current_text = self.field.get("1.0", tk.END).strip()
+        if self.lastContent != current_text:
+            self.data.set(current_text)
+            self.lastContent = current_text
 
-    def on_action(self):
+    def on_primary_action(self):
         """
         - replace entry text with clipboard content
         """
         # clear the text field first
         self.field.delete("1.0", tk.END)
         self.field.insert(tk.INSERT, self.field.clipboard_get())
+
+    def on_secondary_action(self):
+        """
+        - replace entry text with clipboard content
+        """
+        self.field.clipboard_clear()
+        self.field.clipboard_append(self.field.get("1.0", tk.END).strip())
 
 
 class FileEntry(TextEntry):
@@ -1024,7 +1059,8 @@ class FileEntry(TextEntry):
         self.filePats = file_patterns
         self.startDir = start_dir
         self._fix_platform_patterns()
-        self.actionBtn.configure(text='Browse ...')
+        self.primaryBtn.configure(text='Browse ...')
+        self.secondaryBtn.configure(text='Open')
 
     def get_data(self):
         """
@@ -1040,7 +1076,7 @@ class FileEntry(TextEntry):
         lst = self.default if isinstance(self.default, (list, tuple)) else [self.default]
         self.set_data(lst)
 
-    def on_action(self):
+    def on_primary_action(self):
         preferred_ext = self.filePats[pattern := 0][ext := 1]
         selected = filedialog.askopenfilename(
             parent=self,
@@ -1057,6 +1093,21 @@ class FileEntry(TextEntry):
         self.data.set(selected)
         # memorize last selected file's folder
         self.startDir = osp.dirname(selected)
+
+    def on_secondary_action(self):
+        """
+        - single file: open in default editor
+        - multiple files: open common folder in file explorer
+        """
+        if not (files := self.get_data()):
+            return
+        if len(files) == 1:
+            util.open_in_editor(files[0])
+            return
+        # multiple files
+        drvwise_dirs = util.get_drivewise_commondirs(files)
+        for d in drvwise_dirs.value():
+            util.open_in_editor(d)
 
     def _fix_platform_patterns(self):
         """
@@ -1078,12 +1129,12 @@ class FolderEntry(TextEntry):
     def __init__(self, master: Page, key, path, default, doc, presetable=True, start_dir=util.get_platform_home_dir(), **kwargs):
         super().__init__(master, key, path, default, doc, presetable, **kwargs)
         self.startDir = start_dir
-        self.actionBtn.configure(text='Browse ...')
+        self.primaryBtn.configure(text='Browse ...')
 
     def get_data(self):
         return self.data.get().splitlines()
 
-    def on_action(self):
+    def on_primary_action(self):
         selected = filedialog.askdirectory(
             parent=self,
             title="Select Folder(s)",
@@ -1095,6 +1146,21 @@ class FolderEntry(TextEntry):
         self.data.set(selected)
         # memorize last selected file's folder
         self.startDir = osp.dirname(selected)
+
+    def on_secondary_action(self):
+        """
+        - single file: open in default editor
+        - multiple files: open common folder in file explorer
+        """
+        if not (files := self.get_data()):
+            return
+        if len(files) == 1:
+            util.open_in_editor(files[0])
+            return
+        # multiple files
+        drvwise_dirs = util.get_drivewise_commondirs(files)
+        for d in drvwise_dirs.value():
+            util.open_in_editor(d)
 
 
 class ListEntry(Entry):
