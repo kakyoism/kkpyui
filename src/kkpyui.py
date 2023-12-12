@@ -443,7 +443,7 @@ class FormMenu(tk.Menu):
         self.master.bind("<Control-Q>", lambda event: self.on_quit())
         self.helpMenu = tk.Menu(self, tearoff=False)
         self.helpMenu.add_command(label="Help", command=self.on_open_help, accelerator="F1")
-        self.helpMenu.add_command(label="Open Log", command=self.on_open_log)
+        self.helpMenu.add_command(label="Open Diagnostics", command=self.on_open_diagnostics)
         self.helpMenu.add_command(label="Report A Problem", command=self.on_report_issue)
         self.master.bind("<F1>", lambda event: self.on_open_help())
         self.add_cascade(label="File", menu=self.fileMenu)
@@ -469,8 +469,8 @@ class FormMenu(tk.Menu):
     def on_open_help(self):
         self.controller.on_open_help()
 
-    def on_open_log(self):
-        self.controller.on_open_log()
+    def on_open_diagnostics(self):
+        self.controller.on_open_diagnostics()
 
     def on_report_issue(self):
         self.controller.on_report_issue()
@@ -571,7 +571,7 @@ class FormController:
         prompt = Prompt()
         prompt.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
 
-    def on_open_log(self):
+    def on_open_diagnostics(self):
         """
         - open log or app session data is hard to generalize
         - subclass this to use app-level logging scheme
