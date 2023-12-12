@@ -109,6 +109,7 @@ class Root(tk.Tk):
             """
             if isinstance(event.widget, tk.Tk):
                 event.widget.attributes('-topmost', False)
+
         self.attributes('-topmost', True)
         self.focus_force()
         self.bind('<FocusIn>', _unpin_root)
@@ -380,7 +381,7 @@ class Entry(ttk.Frame):
         self.data = None
         # title
         self.label = ttk.Label(self, text=self.text, cursor='hand2')
-        self.label.pack(expand=True, padx=5, pady=2, anchor="w")
+        self.label.pack(side='top', expand=True, padx=5, pady=2, anchor="w")
         self.label.bind("<Double-Button-1>", lambda e: tkmsgbox.showinfo("Help", doc))
         # field
         self.field = widget_constructor(self, **widget_kwargs)
@@ -795,6 +796,7 @@ class IntEntry(Entry):
     - ttk.Scale is intended for a ratio only; the handle does not move for negative numbers
     - must bind a separate variable to the slider to ensure slider-clicking works
     """
+
     def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
         super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
         # model-binding
@@ -841,6 +843,7 @@ class FloatEntry(Entry):
     """
     - must NOT inherit from IntEntry to avoid slider malfunction
     """
+
     def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=0.1, precision=2, **kwargs):
         super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
         self.precision = precision
@@ -886,6 +889,7 @@ class SingleOptionEntry(Entry):
     - because most clients of optionEntry use its index instead of string value, e.g., csound oscillator waveform is defined by integer among a list of options
     - we must bind to index instead of value for model-binding
     """
+
     def __init__(self, master: Page, key, text, options, default, doc, presetable=True, **kwargs):
         super().__init__(master, key, text, ttk.Combobox, default, doc, presetable, values=options, **kwargs)
         # model-binding
@@ -1054,6 +1058,7 @@ class FileEntry(TextEntry):
     - to specify a default file-extension, place it as the head of file_patterns
     - always return a list even when there is only one; so use self.data[0] on app side for a single-file case
     """
+
     def __init__(self, master: Page, key, path, default, doc, presetable=True, file_patterns=(), start_dir=util.get_platform_home_dir(), **kwargs):
         super().__init__(master, key, path, default, doc, presetable, **kwargs)
         self.filePats = file_patterns
@@ -1126,6 +1131,7 @@ class FolderEntry(TextEntry):
     - tkinter supports single-folder selection only
     - multiple folders can be pasted into the text field
     """
+
     def __init__(self, master: Page, key, path, default, doc, presetable=True, start_dir=util.get_platform_home_dir(), **kwargs):
         super().__init__(master, key, path, default, doc, presetable, **kwargs)
         self.startDir = start_dir
@@ -1157,6 +1163,60 @@ class FolderEntry(TextEntry):
         util.open_in_editor(folder)
 
 
+class ReadOnlyEntry(Entry):
+    """
+    - for displaying read-only data
+    - a good example is the output of a task, which is not editable by nature
+    """
+
+    def __init__(self, master: Page, key, text, default, doc, **widget_kwargs):
+        super().__init__(master, key, text, ttk.Label, default, doc, presetable=False, **widget_kwargs)
+        self.data = self._init_data(tk.StringVar)
+        # allow copy
+        self.btnFrame = ttk.Frame(self, padding=5)
+        self.btnFrame.pack(side='bottom', fill='x', expand=True)
+        self.primaryBtn = ttk.Button(self.btnFrame, text="Copy", command=self.on_primary_action)
+        self.primaryBtn.pack(side='left', padx=5, anchor="w")
+
+    def set_data(self, value):
+        self.data.set(value)
+        self.field.configure(text=f'{value}')
+
+    def on_primary_action(self):
+        self.field.clipboard_clear()
+        self.field.clipboard_append(self.field.cget('text').strip())
+
+
+class ReadOnlyPathEntry(ReadOnlyEntry):
+    def __init__(self, master: Page, key, text, default, doc, **widget_kwargs):
+        super().__init__(master, key, text, default, doc, **widget_kwargs)
+        # allow copy and navigate
+        self.secondaryBtn = ttk.Button(self.btnFrame, text="Open", command=self.on_secondary_action)
+        self.secondaryBtn.pack(side='left', padx=5, anchor="w")
+
+    def set_data(self, paths):
+        self.data.set(paths)
+        text = "\n".join(paths)
+        self.field.configure(text=f'{text}')
+
+    def on_secondary_action(self):
+        """
+        - label-data returns a tuple
+        - one-elem tuple uses element size as its len(tuple), which is confusing
+        - so we use text directly
+        """
+        if not (files := self.field.cget('text')):
+            return
+        files = files.splitlines()
+        if len(files) == 1:
+            util.open_in_editor(files[0])
+            return
+        # multiple files
+        drvwise_dirs = util.get_drivewise_commondirs(files)
+        for d in drvwise_dirs.value():
+            util.open_in_editor(d)
+
+
 class ListEntry(Entry):
     """
     - add loose items by typing
@@ -1165,6 +1225,7 @@ class ListEntry(Entry):
     - checkbox to select one by one
     - batch-select: shift-select, control-select
     """
+
     def __init__(self, master: Page, key, text, default, doc, presetable, **kwargs):
         super().__init__(master, key, text, default, doc, presetable, **kwargs)
         self.loadBtn = ttk.Button(self, text="Load...", command=self.on_load)
