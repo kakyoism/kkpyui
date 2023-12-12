@@ -30,7 +30,7 @@ class Controller(ui.FormController):
     def on_open_help(self):
         util.alert('Dev: Just use it! Trust yourself and the log!')
 
-    def on_open_log(self):
+    def on_open_diagnostics(self):
         log = util.find_log_path(self.prompt.logger)
         if not log:
             return
