@@ -4,6 +4,7 @@ import queue
 import threading
 import tkinter as tk
 import types
+import typing
 from tkinter import ttk, filedialog, scrolledtext as tktext
 from tkinter import messagebox as tkmsgbox
 # 3rd party
@@ -1069,12 +1070,14 @@ class FileEntry(TextEntry):
 
     def get_data(self):
         """
-        - a list of paths
+        - adapt to single path or path collection
         """
-        return self.data.get().splitlines()
+        paths = self.data.get().splitlines()
+        return paths[0] if len(paths) == 1 else paths
 
-    def set_data(self, value: list[str]):
-        self.data.set('\n'.join(value))
+    def set_data(self, value: typing.Union[list[str], tuple[str], str]):
+        data = value[0] if isinstance(value, list) and len(value) == 1 else value
+        self.data.set('\n'.join(data)) if isinstance(data, list) else self.data.set(value)
         self._on_data_changed()
 
     def reset(self):
@@ -1138,7 +1141,14 @@ class FolderEntry(TextEntry):
         self.primaryBtn.configure(text='Browse ...')
 
     def get_data(self):
-        return self.data.get().splitlines()
+        paths = self.data.get().splitlines()
+        return paths[0] if len(paths) == 1 else paths
+
+    def set_data(self, value: typing.Union[list[str], tuple[str], str]):
+        data = value[0] if isinstance(value, list) and len(value) == 1 else value
+        self.data.set('\n'.join(data)) if isinstance(data, list) else self.data.set(value)
+        self._on_data_changed()
+        print(f'set_data: {self.text=}, {value=}\n')
 
     def on_primary_action(self):
         selected = filedialog.askdirectory(
@@ -1194,10 +1204,10 @@ class ReadOnlyPathEntry(ReadOnlyEntry):
         self.secondaryBtn = ttk.Button(self.btnFrame, text="Open", command=self.on_secondary_action)
         self.secondaryBtn.pack(side='left', padx=5, anchor="w")
 
-    def set_data(self, paths):
-        self.data.set(paths)
-        text = "\n".join(paths)
-        self.field.configure(text=f'{text}')
+    def set_data(self, value: typing.Union[list[str], tuple[str], str]):
+        data = value[0] if isinstance(value, list) and len(value) == 1 else value
+        self.data.set('\n'.join(data)) if isinstance(data, list) else self.data.set(value)
+        self.field.configure(text=f'{self.data.get()}')
 
     def on_secondary_action(self):
         """

@@ -54,8 +54,8 @@ class Controller(ui.FormController):
                 return
         self.stop_progress()
         out = vars(self.get_latest_model())
-        self.model['export'] = [osp.join(util.get_platform_tmp_dir(), 'form.out.json')]
-        util.save_json(self.model['export'][0], out)
+        self.model['export'] = osp.join(util.get_platform_tmp_dir(), 'form.out.json')
+        util.save_json(self.model['export'], out)
         dmp = json.dumps(self.model, indent=2)
         self.prompt.info(f'{dmp}', confirm=True)
         self.update_view()

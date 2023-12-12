@@ -48,7 +48,7 @@ class Controller(ui.FormController):
         if self.playing:
             return False
         self.update_model()
-        if self.curEngine != self.model['engine'][0]:
+        if self.curEngine != self.model['engine']:
             self.on_shutdown()
             self.on_startup()
         options = ['Sine', 'Square', 'Sawtooth']
@@ -67,10 +67,10 @@ class Controller(ui.FormController):
         self.playing = False
 
     def on_startup(self):
-        assert osp.isfile(self.model['engine'][0])
-        cmd = ['csound', self.model['engine'][0], '-odac']
+        assert osp.isfile(self.model['engine'])
+        cmd = ['csound', self.model['engine'], '-odac']
         util.run_daemon(cmd)
-        self.curEngine = self.model['engine'][0]
+        self.curEngine = self.model['engine']
         # time.sleep(0.8)
 
     def on_shutdown(self, event=None) -> bool:
