@@ -81,7 +81,7 @@ def main():
     bio_widget = ui.TextEntry(pg1, 'bio', "Bio", """Robin Sena (瀬名 ロビン, Sena Robin) is a soft-spoken 15-year-old Hunter and craft-user with pyrokinetic abilities. She was raised in a convent in Italy-(where she was taught how to use and control her
     craft in hunting down Witches) before she was sent to the STN-J to gather information for the Solomon administration; even though she was born in Japan, she had moved to Tuscany when she was still very young. Her witch powers allow her to channel her energy into shields capable of blocking solid matter and crafts, magical powers. -- Wikipedia""", 'text widget.')
     occupation_wgt = ui.MultiOptionEntry(pg2, 'occupation', 'Occupation', ['Lead', 'Warrior', 'Wizard', 'Detective', 'Hacker', 'Clerk'], ['Wizard', 'Detective'], "option widget")
-    export_wgt = ui.FileEntry(pg3, 'export', '', '', 'Path to exported file', False, [('JSON', '*.json'), ('All Files', '*.*')])
+    export_wgt = ui.ReadOnlyPathEntry(pg3, 'export', 'Export to', '', 'Path to exported file')
     action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
     progress_bar = ui.ProgressBar(ui.Globals.root, ui.Globals.progressQueue)
     progress_bar.poll()
