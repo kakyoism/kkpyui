@@ -98,17 +98,18 @@ class Controller(ui.FormController):
 
 def main():
     ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'icon.png'))
-    form = ui.Form(ui.Globals.root, ['general'])
+    form = ui.Form(ui.Globals.root, ['general', 'output'])
     ctrlr = Controller(form)
     ui.Globals.root.set_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
-    page = form.pages['general']
+    pg1 = form.pages['general']
+    pg2 = form.pages['output']
     # Adding widgets to pages
-    scpt_entry = ui.FileEntry(page, 'engine', 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script', [('Csound Script', '*.csd'), ('All Files', '*.*')])
-    oscillator_entry = ui.SingleOptionEntry(page, 'oscillator', "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')
-    freq_entry = ui.IntEntry(page, 'frequency', "Frequency (Hz)", 440, "Frequency of the output signal in Hertz", (20, 20000))
-    gain_entry = ui.FloatEntry(page, 'gain', "Gain (dB)", -16.0, "Gain of the output signal in dB", (-48.0, 0.0), 1.0, 2)
+    scpt_entry = ui.FileEntry(pg1, 'engine', 'Csound Script', osp.join(osp.dirname(__file__), 'tonegen.csd'), 'Path to Csound script', True, [('Csound Script', '*.csd'), ('All Files', '*.*')])
+    oscillator_entry = ui.SingleOptionEntry(pg1, 'oscillator', "Oscillator", ['Sine', 'Square', 'Sawtooth', ], 'Square', 'Oscillator waveform types')
+    freq_entry = ui.IntEntry(pg1, 'frequency', "Frequency (Hz)", 440, "Frequency of the output signal in Hertz", True, (20, 20000))
+    gain_entry = ui.FloatEntry(pg1, 'gain', "Gain (dB)", -16.0, "Gain of the output signal in dB", True, (-48.0, 0.0), 1.0, 2)
     oscillator_entry.set_tracer(ctrlr.on_oscillator_changed)
     freq_entry.set_tracer(ctrlr.on_freq_changed)
     gain_entry.set_tracer(ctrlr.on_gain_changed)
