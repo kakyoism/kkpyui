@@ -921,7 +921,7 @@ class SingleOptionEntry(Entry):
 
 class MultiOptionEntry(Entry):
     def __init__(self, master: Page, key, text, options, default, doc, presetable=True, **kwargs):
-        super().__init__(master, key, text, ttk.Menubutton, default, doc, presetable=True, **kwargs)
+        super().__init__(master, key, text, ttk.Menubutton, default, doc, presetable, **kwargs)
         self.data = {opt: tk.BooleanVar(name=opt, value=opt in default) for opt in options}
         self.field.configure(text='Select one ore more ...')
         # build option menu
@@ -1152,15 +1152,9 @@ class FolderEntry(TextEntry):
         - single file: open in default editor
         - multiple files: open common folder in file explorer
         """
-        if not (files := self.get_data()):
+        if not (folder := self.get_data()):
             return
-        if len(files) == 1:
-            util.open_in_editor(files[0])
-            return
-        # multiple files
-        drvwise_dirs = util.get_drivewise_commondirs(files)
-        for d in drvwise_dirs.value():
-            util.open_in_editor(d)
+        util.open_in_editor(folder)
 
 
 class ListEntry(Entry):
