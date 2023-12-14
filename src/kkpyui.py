@@ -442,7 +442,7 @@ class FormMenu(tk.Menu):
         self.master.bind("<Control-q>", lambda event: self.on_quit())
         self.master.bind("<Control-Q>", lambda event: self.on_quit())
         self.helpMenu = tk.Menu(self, tearoff=False)
-        self.helpMenu.add_command(label="Help", command=self.on_open_help, accelerator="F1")
+        self.helpMenu.add_command(label="Open User Guide", command=self.on_open_help, accelerator="F1")
         self.helpMenu.add_command(label="Open Diagnostics", command=self.on_open_diagnostics)
         self.helpMenu.add_command(label="Report A Problem", command=self.on_report_issue)
         self.master.bind("<F1>", lambda event: self.on_open_help())
