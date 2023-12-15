@@ -9,7 +9,6 @@ with builtin support for:
 - progress bar
 - keyboard shortcuts for running and quitting
 """
-import copy
 import json
 import os.path as osp
 import sys
