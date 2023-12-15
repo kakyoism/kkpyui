@@ -1,9 +1,18 @@
 [tool.poetry]
 name = "kkpyui"
-version = "0.25.1"
+version = "0.25.2"
 description = "Tkinter-based GUI widget library for building small tool applications"
 authors = ["Beinan Li <li.beinan@gmail.com>"]
 readme = "README.md"
+packages = [
+    { include = "kkpyui", from = ".." },
+]
+exclude = [
+    ".idea",
+    ".vscode",
+    "temp",
+    "pyproject.toml",
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
