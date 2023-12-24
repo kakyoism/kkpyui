@@ -16,7 +16,7 @@ import time
 
 # project
 _script_dir = osp.abspath(osp.dirname(__file__))
-sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/../src'))
+sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/..'))
 import kkpyui as ui
 import kkpyutil as util
 
@@ -60,6 +60,7 @@ class Controller(ui.FormController):
         self.update_view()
 
 
+@util.rerun_lock(name=__file__, folder=osp.abspath(f'{util.get_platform_tmp_dir()}/kkpyui/character_design'))
 def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
     form = ui.Form(ui.Globals.root, ['profile', 'plot', 'output'])
@@ -80,6 +81,8 @@ def main():
     bio_widget = ui.TextEntry(pg1, 'bio', "Bio", """Robin Sena (瀬名 ロビン, Sena Robin) is a soft-spoken 15-year-old Hunter and craft-user with pyrokinetic abilities. She was raised in a convent in Italy-(where she was taught how to use and control her
     craft in hunting down Witches) before she was sent to the STN-J to gather information for the Solomon administration; even though she was born in Japan, she had moved to Tuscany when she was still very young. Her witch powers allow her to channel her energy into shields capable of blocking solid matter and crafts, magical powers. -- Wikipedia""", 'text widget.')
     occupation_wgt = ui.MultiOptionEntry(pg2, 'occupation', 'Occupation', ['Lead', 'Warrior', 'Wizard', 'Detective', 'Hacker', 'Clerk'], ['Wizard', 'Detective'], "option widget")
+    episode_wgt = ui.ListEntry(pg2, 'episodes', 'Appeared in Episodes', ['ep01', 'ep02', 'ep03', 'ep04', 'ep05', 'ep06', 'ep07', 'ep08', 'ep09', 'ep10', 'ep11', 'ep12', 'ep13', 'ep14', 'ep15', 'ep16', 'ep17', 'ep18', 'ep19', 'ep20', 'ep21', 'ep22',
+                                                                         'ep23', 'ep24', 'ep25', 'ep26'], 'List of episodes in which this character appears', True)
     export_wgt = ui.ReadOnlyPathEntry(pg3, 'export', 'Export to File', '', 'Path to exported file')
     action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
     progress_bar = ui.ProgressBar(ui.Globals.root, ui.Globals.progressQueue)
