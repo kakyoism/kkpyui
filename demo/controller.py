@@ -16,7 +16,7 @@ import kkpyutil as util
 import pythonosc.udp_client as osc_client
 # project
 _script_dir = osp.abspath(osp.dirname(__file__))
-sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/../src'))
+sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/..'))
 import kkpyui as ui
 
 

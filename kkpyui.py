@@ -1233,60 +1233,76 @@ class ListEntry(Entry):
     - add loose items by typing
     - remove items by keystroke: delete key
     - load items from a list file
-    - checkbox to select one by one
     - batch-select: shift-select, control-select
+    - does not need data binding, data is in listbox itself
     """
 
-    def __init__(self, master: Page, key, text, default, doc, presetable, columns=('items',), **kwargs):
+    def __init__(self, master: Page, key, text, default, doc, presetable, **kwargs):
         super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
         # table
-        scrollbar = ttk.Scrollbar(self.field)
-        self.lstTree = ttk.Treeview(self.field, yscrollcommand=scrollbar.set, show="headings", selectmode="extended")
-        for col in columns:
-            self.lstTree.heading(col, text=col.title())
-        scrollbar.configure(command=self.lstTree.yview)
+        lst_frame = ttk.Frame(self.field)
+        lst_frame.pack(side="top", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(lst_frame)
+        self.listBox = tk.Listbox(lst_frame, yscrollcommand=scrollbar.set, selectmode="extended")
+        scrollbar.configure(command=self.listBox.yview)
         scrollbar.pack(side="right", fill="y")
-        self.lstTree.pack(side="left", fill="both", expand=True)
-        self.lstTree.bind('<Double-1>', self.on_edit_selected)
-        self.bind('<Delete>', self.on_delete_selected)
-        self.bind('<BackSpace>', self.on_delete_selected)
-        self.bind('<Control-a>', self.select_all)
+        self.listBox.pack(side="left", fill="both", expand=True)
+        self.listBox.bind('<Double-1>', self.on_edit_selected)
+        self.listBox.bind('<Delete>', self.on_delete_selected)
+        self.listBox.bind('<BackSpace>', self.on_delete_selected)
+        self.listBox.bind('<Control-a>', self.on_select_all)
         # buttons
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(sode='bottom', fill='x', expand=True)
+        btn_frame = ttk.Frame(self.field)
+        btn_frame.pack(side='bottom', fill='x', expand=False)
         self.btnAddItem = ttk.Button(btn_frame, text="Add", command=self.on_add)
         self.btnAddItem.pack(side=tk.LEFT)
-        self.menubtnSaveLoad = tk.Menubutton(btn_frame, text="Actions", relief=tk.RAISED)
+        self.menubtnSaveLoad = tk.Menubutton(btn_frame, text="Save/Load")
         self.menu = tk.Menu(self.menubtnSaveLoad, tearoff=0)
         self.menubtnSaveLoad.config(menu=self.menu)
-        # Add menu items
-        self.menu.add_command(label="Save List", command=self.on_save)
-        self.menu.add_command(label="Load List", command=self.on_load)
+        # Add menu items: user will load more often than save when filling forms, so load is placed first
+        self.menu.add_command(label="Load ...", command=self.on_load)
+        self.menu.add_command(label="Save ...", command=self.on_save)
         self.menubtnSaveLoad.pack(side=tk.LEFT)
+        self.reset()
+
+    def get_data(self):
+        return list(self.listBox.get(0, tk.END))
+
+    def set_data(self, data: list):
+        self.listBox.delete(0, tk.END)
+        for item in data:
+            self.listBox.insert(tk.END, item)
 
     def on_save(self):
-        preset_file = filedialog.asksaveasfilename(filetypes=[("TSV files", "*.tsv"), ("CSV files", "*.csv"), ("Text files", "*.txt"), ("List files", "*.list")])
+        preset_file = filedialog.asksaveasfilename(filetypes=[("TSV files", "*.tsv"), ("CSV files", "*.csv"), ("Text files", "*.lst.txt"), ("List files", "*.list")])
         if not preset_file:
             return
-        items = [self.lstTree.item(child)["values"][0] for child in self.lstTree.get_children()]
+        # 1d list of possible str-dumps of csv/tsv rows
+        rows = list(self.listBox.get(0, tk.END))
         ext = osp.splitext(preset_file)[1].lower()
         if ext in ['.tsv', '.csv']:
-            util.save_dsv(preset_file, items, delimiter=',' if ext == '.csv' else '\t', encoding=util.LOCALE_CODEC)
+            delim = ',' if ext == '.csv' else '\t'
+            rows = [row.split(delim) for row in rows]
+            util.save_dsv(preset_file, rows, delimiter=delim, encoding=util.LOCALE_CODEC)
             return
-        util.save_lines(preset_file, items, addlineend=True, encoding=util.LOCALE_CODEC)
+        util.save_lines(preset_file, rows, addlineend=True, encoding=util.LOCALE_CODEC)
 
     def on_load(self):
         """
         - assume all list/spreadsheet files are headless
         """
-        preset_file = filedialog.askopenfilename(filetypes=[("TSV files", "*.tsv"), ("CSV files", "*.csv"), ("Text files", "*.txt"), ("List files", "*.list")])
+        preset_file = filedialog.askopenfilename(filetypes=[("TSV files", "*.tsv"), ("CSV files", "*.csv"), ("Text files", "*.lst.txt"), ("List files", "*.list")])
         if not preset_file:
             return
-        for child in self.lstTree.get_children():
-            self.lstTree.delete(child)
+        self.listBox.delete(0, tk.END)  # Clear existing items
         ext = osp.splitext(preset_file)[1].lower()
-        items = util.load_dsv(preset_file, delimiter=',' if ext == '.csv' else '\t', encoding=util.LOCALE_CODEC) if ext in ['.tsv', '.csv'] else util.load_lines(preset_file, rmlineend=True, encoding=util.LOCALE_CODEC)
-        self.lstTree.insert('', tk.END, values=items)
+        rows = util.load_dsv(preset_file, delimiter=',' if ext == '.csv' else '\t', encoding=util.LOCALE_CODEC) if ext in ['.tsv', '.csv'] else util.load_lines(preset_file, rmlineend=True, encoding=util.LOCALE_CODEC)
+        delim = ',' if ext == '.csv' else '\t'
+        for row in rows:
+            # save row as string
+            if isinstance(row, (list, tuple)):
+                row = delim.join(row)
+            self.listBox.insert(tk.END, row)
 
     def on_add(self):
         """
@@ -1295,21 +1311,34 @@ class ListEntry(Entry):
         new_item = tkdialog.askstring('New Item', f'Enter text for new item:', parent=self)
         if not new_item:
             return
-        self.lstTree.insert('', tk.END, values=(new_item,))
+        self.listBox.insert(tk.END, new_item)
 
     def on_edit_selected(self, event):
-        selected_item = self.lstTree.selection()
+        selected_item = self.listBox.curselection()
         if not selected_item:
             return
-        item_text = self.lstTree.item(selected_item, "values")[0]
+        index = selected_item[0]
+        item_text = self.listBox.get(index)
         # Pop up a dialog to edit the item
         # item_title = self.table['columns'][0]['text']
         new_text = tkdialog.askstring('Edit Item', "Edit item text:", initialvalue=item_text, parent=self)
         if new_text is not None:
-            self.lstTree.item(selected_item, values=(new_text,))
+            self.listBox.delete(index)
+            self.listBox.insert(index, new_text)
 
     def on_delete_selected(self, event):
-        selected_items = self.lstTree.selection()
-        for item in selected_items:
-            self.lstTree.delete(item)
+        selected_indices = self.listBox.curselection()
+        if not selected_indices:
+            return
+        next_index = None
+        for index in reversed(selected_indices):
+            if next_index is None:
+                next_index = max(0, index - 1)
+            self.listBox.delete(index)
+        if next_index is not None and next_index < self.listBox.size():
+            self.listBox.selection_set(next_index)
+            self.listBox.activate(next_index)
+            self.listBox.see(next_index)
 
+    def on_select_all(self, event):
+        self.listBox.selection_set(0, tk.END)
