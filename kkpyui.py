@@ -1342,3 +1342,19 @@ class ListEntry(Entry):
 
     def on_select_all(self, event):
         self.listBox.selection_set(0, tk.END)
+
+
+class CurveEntry(Entry):
+    """
+    - draw a 1d-curve as line segments, defined by control points
+    - user provides x/y axis range, default to unit range [0, 1]
+    - builtin rulers and grid, auto-scales upon resizing the canvas
+    - all edit ops, e.g., point CRUD, have callbacks for remote sync
+    - outputs a sequence of control point X-Y coordinates
+    """
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, **widget_kwargs):
+        super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **widget_kwargs)
+        pass
+ 
+    def main(self):
+        pass
