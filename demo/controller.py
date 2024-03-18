@@ -9,6 +9,7 @@ Dependencies with installation instructions:
   - Windows: choco install csound, or download and install binary from https://csound.com/download.html
 """
 import os.path as osp
+import shutil
 import sys
 import time
 # 3rd party
@@ -68,7 +69,7 @@ class Controller(ui.FormController):
 
     def on_startup(self):
         assert osp.isfile(self.model['engine'])
-        cmd = ['csound', self.model['engine'], '-odac']
+        cmd = [shutil.which('csound'), self.model['engine'], '-odac']
         util.run_daemon(cmd)
         self.curEngine = self.model['engine']
         # time.sleep(0.8)
