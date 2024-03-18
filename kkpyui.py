@@ -810,7 +810,7 @@ class IntEntry(Entry):
             self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
             self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
             self.slider.grid(row=0, column=1, sticky="ew")
-            self.slider.bind("<Button-1>", self.on_scale_clicked)
+            self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
 
     def set_data(self, value):
         self.data.set(value)
@@ -823,11 +823,10 @@ class IntEntry(Entry):
     def on_scale_changed(self, ratio):
         new_value = None
         try:
-            self.ratio.set(ratio)
             value_range = self.spinbox['to'] - self.spinbox['from']
             new_value = int(self.spinbox['from'] + float(ratio) * value_range)
             self.data.set(new_value)
-        except ValueError:
+        except ValueError as e:
             pass  # Ignore non-integer values
 
     def on_scale_clicked(self, event):
@@ -837,7 +836,7 @@ class IntEntry(Entry):
         - otherwise, it may jump b/w left/right ends when clicking
         """
         relative_x = event.x / (scale_width := self.slider.winfo_width())
-        self.on_scale_changed(relative_x)
+        self.slider.set(relative_x)
         self.slider.update_idletasks()
 
 
@@ -858,7 +857,7 @@ class FloatEntry(Entry):
             self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
             self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
             self.slider.grid(row=0, column=1, sticky="ew")
-            self.slider.bind("<Button-1>", self.on_scale_clicked)
+            self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
 
     def set_data(self, value):
         self.data.set(value)
@@ -880,6 +879,7 @@ class FloatEntry(Entry):
     def on_scale_clicked(self, event):
         """
         - must ensure inf is not passed in
+        - must bind to ButtonRelease-1 to avoid slider malfunction when dragging
         """
         relative_x = event.x / (scale_width := self.slider.winfo_width())
         self.slider.set(relative_x)
