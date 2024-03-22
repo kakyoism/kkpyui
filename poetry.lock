@@ -2,14 +2,14 @@
 
 [[package]]
 name = "kkpyutil"
-version = "1.33.3"
+version = "1.33.4"
 description = "Building blocks for sysadmin and DevOps"
 category = "main"
 optional = false
 python-versions = ">=3.9,<4.0"
 files = [
-    {file = "kkpyutil-1.33.3-py3-none-any.whl", hash = "sha256:0943487aa94f6c2e952fadbabb4ef78bcbe9b0175d6cbc9bc9dd447c6cadc26b"},
-    {file = "kkpyutil-1.33.3.tar.gz", hash = "sha256:e6507c6d661efd92f08be1636b14710b1b93cf9e498dd5ae0e15895d551ecc23"},
+    {file = "kkpyutil-1.33.4-py3-none-any.whl", hash = "sha256:cd38511eebc60eceebf98fec95c2c8f091713a9b042d0ac43a4dfc843afe7ada"},
+    {file = "kkpyutil-1.33.4.tar.gz", hash = "sha256:db16ad63f81da78b3717c392a1cd3ab6fb5d9b0f90b40de7b400362c7cf6889f"},
 ]
 
 [[package]]
@@ -27,4 +27,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "ba104da4635ca987a34701f18ddd2fac853f94444ff6f0c315bb3aa817e05bb4"
+content-hash = "5e80bdf5cacfa455220b65e29b83bf9f518fea0213d8776875fc820d4da3819b"
