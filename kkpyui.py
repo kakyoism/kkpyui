@@ -301,6 +301,7 @@ class Form(ttk.PanedWindow):
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
         self.pages = {title.lower(): Page(self.entryPane.frame, title.title()) for title in page_titles}
+        self.prompt = Prompt()
         self.init()
         self.layout()
 
@@ -497,7 +498,6 @@ class FormController:
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
         self.taskThread = None
         self.taskStopEvent = Globals.taskStopEvent
-        self.prompt = Prompt()
 
     def update_model(self):
         config_by_page = {
