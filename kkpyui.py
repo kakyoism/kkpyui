@@ -497,6 +497,7 @@ class FormController:
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
         self.taskThread = None
         self.taskStopEvent = Globals.taskStopEvent
+        self.prompt = Prompt()
 
     def update_model(self):
         config_by_page = {
@@ -570,7 +571,7 @@ class FormController:
         - subclass this for your own 
         """
         prompt = Prompt()
-        prompt.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
+        self.prompt.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
 
     def on_open_diagnostics(self):
         """

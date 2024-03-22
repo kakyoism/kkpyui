@@ -24,7 +24,6 @@ import kkpyutil as util
 class Controller(ui.FormController):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prompt = ui.Prompt()
 
     def on_open_help(self):
         util.alert('Dev: Just use it! Trust yourself and the log!')
