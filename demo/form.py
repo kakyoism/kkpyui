@@ -26,7 +26,7 @@ class Controller(ui.FormController):
         super().__init__(*args, **kwargs)
 
     def on_open_help(self):
-        util.alert('Dev: Just use it! Trust yourself and the log!')
+        self.info('Dev: Just use it! Trust yourself and the log!')
 
     def on_open_diagnostics(self):
         log = util.find_log_path(self.prompt.logger)
@@ -35,7 +35,7 @@ class Controller(ui.FormController):
         util.open_in_browser(log)
 
     def on_report_issue(self):
-        self.prompt.info('Dev: It\'s not a bug, it\'s a feature!')
+        self.info('Dev: It\'s not a bug, it\'s a feature!')
 
     def run_task(self):
         """

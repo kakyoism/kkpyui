@@ -570,8 +570,7 @@ class FormController:
         - open help doc, e.g., webpage, local file
         - subclass this for your own 
         """
-        prompt = Prompt()
-        self.prompt.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
+        self.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
 
     def on_open_diagnostics(self):
         """
@@ -580,16 +579,14 @@ class FormController:
         - e.g., opening a log file using the default browser
         - e.g., opening a folder containing the entire diagnostics
         """
-        prompt = Prompt()
-        prompt.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
+        self.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
 
     def on_report_bug(self):
         """
         - report bug to the developer
         - subclass this
         """
-        prompt = Prompt()
-        prompt.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
+        self.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
 
     def on_reset(self):
         """
@@ -684,6 +681,15 @@ class FormController:
         """
         if util.PLATFORM == 'Darwin':
             self.on_quit()
+
+    def info(self, msg, confirm=True):
+        self.form.prompt.info(msg, confirm)
+
+    def warning(self, detail, advice, question='Continue?', confirm=True):
+        return self.form.prompt.warning(detail, advice, question, confirm)
+
+    def error(self, errclass, detail, advice, confirm=True):
+        return self.form.prompt.error(errclass, detail, advice, confirm)
 
 
 class FormActionBar(ttk.Frame):
