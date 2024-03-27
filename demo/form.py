@@ -55,7 +55,7 @@ class Controller(ui.FormController):
         self.model['export'] = osp.join(util.get_platform_tmp_dir(), 'form.out.json')
         util.save_json(self.model['export'], out)
         dmp = json.dumps(self.model, indent=2)
-        self.prompt.info(f'{dmp}', confirm=True)
+        self.info(f'{dmp}', confirm=True)
         self.update_view()
 
 
