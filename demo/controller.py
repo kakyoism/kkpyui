@@ -45,10 +45,11 @@ class Controller(ui.FormController):
     def run_task(self, event=None):
         """
         - assume csound has started
+        - caller is responsible for updating model
         """
         if self.playing:
             return False
-        self.update_model()
+        # self.update_model()
         if self.curEngine != self.model['engine']:
             self.on_shutdown()
             self.on_startup()
@@ -77,17 +78,20 @@ class Controller(ui.FormController):
     def on_shutdown(self, event=None) -> bool:
         if not super().on_shutdown():
             return False
-        self.on_cancel()
+        if ui.Globals.root.isActive:
+            self.on_cancel()
         util.kill_process_by_name('csound')
         return True
 
     def on_freq_changed(self, name, var, index, mode):
-        print(f'{name=}={var.get()}, {index=}, {mode=}')
-        self.sender.send_message('/frequency', var.get())
+        freq = ui.safe_get_number(var)
+        print(f'{name=}={freq}, {index=}, {mode=}')
+        self.sender.send_message('/frequency', freq)
 
     def on_gain_changed(self, name, var, index, mode):
-        print(f'{name=}={var.get()}, {index=}, {mode=}')
-        self.sender.send_message('/gain', var.get())
+        gain = ui.safe_get_number(var)
+        print(f'{name=}={gain}, {index=}, {mode=}')
+        self.sender.send_message('/gain', gain)
 
     def on_oscillator_changed(self, name, var, index, mode):
         print(f'{name=}={var.get()}, {index=}, {mode=}')

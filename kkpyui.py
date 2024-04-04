@@ -3,6 +3,7 @@ import json
 import os.path as osp
 import queue
 import threading
+import time
 import tkinter as tk
 import types
 import typing
@@ -30,6 +31,15 @@ def _validate_number(value_after_input, user_input, widget_name, data_type):
     """
     - ttk.spinbox does not support paste over selection; pasted content always prepends
     - so pasting always fails number validation in spinbox
+    - usecase 1: erase current number and input number from scratch
+      - pre-condition: a default number is shown in the entry
+      - intent: user wants to focus, erase, and type in a new number
+      - steps:
+        - click in the entry or select the number
+        - start typing or hit backspace
+        - the old number is erased
+        - as user types, no validation is going on
+        - once the field is out of focus, the new number is validated
     """
     # allow '-6.' and append 0 to fix format
     if truncated_float := data_type == float and value_after_input.endswith('.') and util.is_float_text(value_after_input):
@@ -46,13 +56,30 @@ def _validate_number(value_after_input, user_input, widget_name, data_type):
     try:
         if not (minval <= data_type(value_after_input) <= maxval):
             Globals.root.bell()
-            util.alert(f"""New value {value_after_input} would fall outside of range: [{minval}, {maxval}]
-Change skipped""", 'ERROR')
+            util.alert(f"""New value {value_after_input} would fall outside range: [{minval}, {maxval}]; will reset it to default""", 'ERROR')
             return False
     except ValueError as e:
         Globals.root.bell()
         return False
     return True
+
+
+def safe_get_number(tknumvar: tk.Variable):
+    """
+    - swallow crash and give caller clues to handle with
+    - when it's not a number, the caller should not use the value and choose one of the following strategies:
+      - early out silently
+      - reset to default value
+      - throw exception
+    """
+    try:
+        return tknumvar.get()
+    except tk.TclError as e:
+        util.glogger.warning(f'Value error: {e}')
+        # get uesr input from exception message
+        # - e.g., 'expected integer but got "abc"'
+        user_input = str(e).split(' ')[-1].removeprefix('"').removesuffix('"')
+        return user_input
 
 
 class Root(tk.Tk):
@@ -431,18 +458,22 @@ class Entry(ttk.Frame):
         """
         self.data.trace_add('write', callback=lambda name, index, mode, var=self.data: handler(name, var, index, mode))
 
+    def validate_data(self):
+        print('subclass data validation: call this when submit the form')
+
 
 class FormMenu(tk.Menu):
     def __init__(self, master, controller, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         assert isinstance(self.master, tk.Tk)
         self.master.configure(menu=self)
+        self.controller = controller
         self.fileMenu = tk.Menu(self, tearoff=False)
         self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
         self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
         self.fileMenu.add_command(label="Quit", command=self.on_quit, accelerator="Ctrl+Q")
-        self.master.bind("<Control-q>", lambda event: self.on_quit())
-        self.master.bind("<Control-Q>", lambda event: self.on_quit())
+        # self.master.bind("<Control-q>", lambda event: self.on_quit())
+        # self.master.bind("<Control-Q>", lambda event: self.on_quit())
         self.helpMenu = tk.Menu(self, tearoff=False)
         self.helpMenu.add_command(label="Open User Guide", command=self.on_open_help, accelerator="F1")
         self.helpMenu.add_command(label="Open Diagnostics", command=self.on_open_diagnostics)
@@ -450,7 +481,6 @@ class FormMenu(tk.Menu):
         self.master.bind("<F1>", lambda event: self.on_open_help())
         self.add_cascade(label="File", menu=self.fileMenu)
         self.add_cascade(label="Help", menu=self.helpMenu)
-        self.controller = controller
 
     def on_load_preset(self):
         preset = filedialog.askopenfilename(title="Load Preset", filetypes=[
@@ -647,7 +677,7 @@ class FormController:
     def on_shutdown(self) -> bool:
         """
         - called just before quitting
-        - safe-schedules shutdown with prompt and early-outs if user cancels
+        - safely schedules shutdown with prompt and early-outs if user cancels
         - subclass this for post-ops
         """
         if not self.taskThread or not self.taskThread.is_alive():
@@ -657,7 +687,7 @@ class FormController:
         prompt = Prompt()
         # Make default behavior a safe bet
         if prompt.warning('Quitting a running task may cause damage. Click Yes to wait for it to finish, or No to force-quit', 'Wait for it to finish.', question='Keep waiting?', confirm=True):
-            # user cancelled
+            # user decided to wait
             return False
         self.taskStopEvent.set()  # progressbar needs to be stopped
         # task should have received stop event, let's wait for it to end
@@ -799,46 +829,58 @@ class ProgressBar(WaitBar):
         self.after(wait_ms, self.poll)
 
 
-class IntEntry(Entry):
-    """
-    - show slider for finite numbers only
-    - ttk.Scale is intended for a ratio only; the handle does not move for negative numbers
-    - must bind a separate variable to the slider to ensure slider-clicking works
-    """
-
-    def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
+class NumberEntry(Entry):
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), datatype=tk.IntVar, step=1, **kwargs):
         super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
+        self.isUserTyping = False
         # model-binding
-        self.data = self._init_data(tk.IntVar)
+        self.data = self._init_data(datatype)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateIntCmd)
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
             self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
             self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
+        self.spinbox.bind('<KeyPress>', self.on_start_typing)
+        self.spinbox.bind('<KeyRelease>', self.on_stop_typing)
+        self.spinbox.bind('<FocusOut>', self.validate_data)
 
     def set_data(self, value):
         self.data.set(value)
         if hasattr(self, 'ratio'):
             self._sync_scale_with_spinbox()
 
+    def on_start_typing(self, event):
+        self.isUserTyping = True
+
+    def on_stop_typing(self, event):
+        self.isUserTyping = False
+
+    def set_tracer(self, handler):
+        """
+        - ignore "write" event while user types into spinbox to avoid invalid data
+        - leave validation to out-of-focus event
+        """
+
+        def _mouse_tweak_handler(name, var, index, mode):
+            if self.isUserTyping:
+                return
+            handler(name, var, index, mode)
+
+        self.data.trace_add('write', callback=lambda name, index, mode, var=self.data: _mouse_tweak_handler(name, var, index, mode))
+
     def _sync_scale_with_spinbox(self):
         self.ratio.set((self.data.get() - self.spinbox['from']) / (self.spinbox['to'] - self.spinbox['from']))
 
     def on_scale_changed(self, ratio):
-        new_value = None
-        try:
-            value_range = self.spinbox['to'] - self.spinbox['from']
-            new_value = int(self.spinbox['from'] + float(ratio) * value_range)
-            self.data.set(new_value)
-        except ValueError as e:
-            pass  # Ignore non-integer values
+        raise NotImplementedError('subclass this!')
 
     def on_scale_clicked(self, event):
         """
         - must ensure inf is not passed in
+        - must bind to ButtonRelease-1 to avoid slider malfunction when dragging
         - update_idletasks() redraws slider and flush all pending events, thus reflects recent changes in its look
         - otherwise, it may jump b/w left/right ends when clicking
         """
@@ -846,33 +888,62 @@ class IntEntry(Entry):
         self.slider.set(relative_x)
         self.slider.update_idletasks()
 
+    def validate_data(self, event=None):
+        """
+        - validate after user focuses out (tab key or mouse click into another entry)
+        - ensure the value is a number within the range
+        - ignore scenarios of deleting and cleaning up
+        - otherwise reset to default
+        """
+        value = safe_get_number(self.data)
+        if not util.is_number_text(str(value)):
+            self._alert_and_refocus(value, f'{self.text} ({value}) is not a number')
+            return False
+        # range check
+        minval = self.spinbox.config('from')[4]
+        maxval = self.spinbox.config('to')[4]
+        try:
+            if not (minval <= value <= maxval):
+                self._alert_and_refocus(value, f'{self.text} ({value}) is outside range: [{minval}, {maxval}]')
+                return False
+        except ValueError as e:
+            self._alert_and_refocus(value, f'{self.text} ({value}) triggerd unknown error: {e}')
+            return False
+        return True
 
-class FloatEntry(Entry):
+    def _alert_and_refocus(self, value, err_msg):
+        Globals.root.bell()
+        util.alert(err_msg, 'ERROR')
+        Globals.root.after(100, lambda: self.spinbox.focus_set())
+
+
+class IntEntry(NumberEntry):
+    """
+    - show slider for finite numbers only
+    - ttk.Scale is intended for a ratio only; the handle does not move for negative numbers
+    - must bind a separate variable to the slider to ensure slider-clicking works
+    """
+
+    def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=1, **kwargs):
+        super().__init__(master, key, text, default, doc, presetable, minmax, tk.IntVar, step, **kwargs)
+
+    def on_scale_changed(self, ratio):
+        try:
+            value_range = self.spinbox['to'] - self.spinbox['from']
+            new_value = int(self.spinbox['from'] + float(ratio) * value_range)
+            self.data.set(new_value)
+        except ValueError as e:
+            pass  # Ignore non-integer values
+
+
+class FloatEntry(NumberEntry):
     """
     - must NOT inherit from IntEntry to avoid slider malfunction
     """
 
     def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), step=0.1, precision=2, **kwargs):
-        super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
+        super().__init__(master, key, text, default, doc, presetable, minmax, tk.DoubleVar, step, **kwargs)
         self.precision = precision
-        # model-binding
-        self.data = self._init_data(tk.DoubleVar)
-        # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, validate='all', validatecommand=Globals.root.validateFloatCmd)
-        self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
-        if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
-            self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
-            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
-            self.slider.grid(row=0, column=1, sticky="ew")
-            self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
-
-    def set_data(self, value):
-        self.data.set(value)
-        if hasattr(self, 'ratio'):
-            self._sync_scale_with_spinbox()
-
-    def _sync_scale_with_spinbox(self):
-        self.ratio.set((self.data.get() - self.spinbox['from']) / (self.spinbox['to'] - self.spinbox['from']))
 
     def on_scale_changed(self, ratio):
         try:
@@ -882,15 +953,6 @@ class FloatEntry(Entry):
             self.data.set(float(formatted_value))
         except ValueError:
             pass
-
-    def on_scale_clicked(self, event):
-        """
-        - must ensure inf is not passed in
-        - must bind to ButtonRelease-1 to avoid slider malfunction when dragging
-        """
-        relative_x = event.x / (scale_width := self.slider.winfo_width())
-        self.slider.set(relative_x)
-        self.slider.update_idletasks()
 
 
 class SingleOptionEntry(Entry):
@@ -1359,9 +1421,10 @@ class CurveEntry(Entry):
     - all edit ops, e.g., point CRUD, have callbacks for remote sync
     - outputs a sequence of control point X-Y coordinates
     """
+
     def __init__(self, master: Page, key, text, default, doc, presetable=True, **widget_kwargs):
         super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **widget_kwargs)
         pass
- 
+
     def main(self):
         pass
