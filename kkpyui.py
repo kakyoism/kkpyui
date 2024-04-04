@@ -855,8 +855,8 @@ class NumberEntry(Entry):
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step)
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
-            self.ratio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
-            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.ratio, command=self.on_scale_changed)
+            self.sliderRatio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
+            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.sliderRatio, command=self.on_scale_changed)
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
         self.spinbox.bind('<KeyPress>', self.on_start_typing)
@@ -888,7 +888,7 @@ class NumberEntry(Entry):
         self.data.trace_add('write', callback=lambda name, index, mode, var=self.data: _mouse_tweak_handler(name, var, index, mode))
 
     def _sync_scale_with_spinbox(self):
-        self.ratio.set((self.data.get() - self.spinbox['from']) / (self.spinbox['to'] - self.spinbox['from']))
+        self.sliderRatio.set((self.data.get() - self.spinbox['from']) / (self.spinbox['to'] - self.spinbox['from']))
 
     def on_scale_changed(self, ratio):
         raise NotImplementedError('subclass this!')
@@ -925,6 +925,8 @@ class NumberEntry(Entry):
         except ValueError as e:
             self._alert_and_refocus(value, f'{self.text} ({value}) triggerd unknown error: {e}')
             return False
+        if hasattr(self, 'ratio'):
+            self._sync_scale_with_spinbox()
         return True
 
     def _alert_and_refocus(self, value, err_msg):
