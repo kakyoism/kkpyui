@@ -389,6 +389,18 @@ class Form(ttk.PanedWindow):
                 entry.layout()
         self.entryPane.update()
 
+    def validate_entries(self):
+        for title, pg in self.pages.items():
+            for entry in pg.winfo_children():
+                if not entry.validate_data():
+                    return False
+        return True
+
+    def reset_entries(self):
+        for title, pg in self.pages.items():
+            for entry in pg.winfo_children():
+                entry.reset()
+
 
 class Entry(ttk.Frame):
     """
@@ -459,7 +471,8 @@ class Entry(ttk.Frame):
         self.data.trace_add('write', callback=lambda name, index, mode, var=self.data: handler(name, var, index, mode))
 
     def validate_data(self):
-        print('subclass data validation: call this when submit the form')
+        print(f'{self.__class__}: subclass data validation: call this when out of focus and submitting the form')
+        return True
 
 
 class FormMenu(tk.Menu):
@@ -528,6 +541,9 @@ class FormController:
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
         self.taskThread = None
         self.taskStopEvent = Globals.taskStopEvent
+
+    def validate_form(self):
+        return self.form.validate_entries()
 
     def update_model(self):
         config_by_page = {
@@ -623,9 +639,7 @@ class FormController:
         - reset all form fields to default
         - usually can be used as is, no need to override
         """
-        for pg in self.form.pages.values():
-            for entry in pg.winfo_children():
-                entry.reset()
+        self.form.reset_entries()
 
     def on_submit(self, event=None):
         """
@@ -633,6 +647,8 @@ class FormController:
         - usually can be used as is, no need to override
         """
         if self.taskThread and self.taskThread.is_alive():
+            return
+        if not self.validate_form():
             return
         self.update_model()
         self.taskStopEvent.clear()
