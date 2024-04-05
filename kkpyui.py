@@ -1432,7 +1432,7 @@ class ListEntry(Entry):
         self.listBox.bind('<BackSpace>', self.on_delete_selected)
         self.listBox.bind('<Control-a>', self.on_select_all)
         # buttons
-        btn_frame = ttk.Frame(self.field)
+        btn_frame = ttk.Frame(self.field, style='TRootFrame.TFrame')
         btn_frame.pack(side='bottom', fill='x', expand=False)
         self.btnAddItem = ttk.Button(btn_frame, text="Add", command=self.on_add)
         self.btnAddItem.pack(side=tk.LEFT)
