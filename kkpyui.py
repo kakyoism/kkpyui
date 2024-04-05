@@ -9,6 +9,7 @@ import types
 import typing
 from tkinter import ttk, filedialog, scrolledtext as tktext, simpledialog as tkdialog
 from tkinter import messagebox as tkmsgbox
+from tkinter.font import Font as tkFont
 # 3rd party
 import kkpyutil as util
 
@@ -17,51 +18,121 @@ class Globals:
     root = None
     progressQueue = queue.Queue()
     taskStopEvent = threading.Event()
+    style = None
 
 
-def _validate_int(value_after_input, user_input, widget_name):
-    return _validate_number(value_after_input, user_input, widget_name, int)
+def init_style():
+    Globals.style = ttk.Style()
+    Globals.style.theme_use('clam')
+    # fonts
+    node_font = tkFont(family="Helvetica", size=10, weight="bold")
+    # frames
+    Globals.style.configure('TRootFrame.TFrame', background='#303841', foreground='white', borderwidth=5)
+    Globals.style.configure('TNavFrame.TFrame', background='#22262a', foreground='white', borderwidth=0)
+    # form
+    Globals.style.configure('Page.TLabelframe', background="#303841", foreground="#DDD", relief="flat", borderwidth=2, font=node_font)
+    Globals.style.configure('Page.TLabelframe.Label', background="#303841", foreground="#DDD")
+    # action bar
+    Globals.style.configure('TActionFrame.TFrame', background='#2e3238', foreground='white', borderwidth=0)
+    # progress bar
+    Globals.style.configure("Custom.Horizontal.TProgressbar",
+                            troughcolor='#1c1d1f',  # Dark background
+                            background='#5bc0de',  # Greenish progress bar
+                            bordercolor='#1c1d1f',
+                            lightcolor='#1c1d1f',
+                            darkcolor='#1c1d1f')
+    Globals.style.layout("Custom.Horizontal.TProgressbar",
+                         [('Horizontal.Progressbar.trough',
+                           {'children': [('Horizontal.Progressbar.pbar',
+                                          {'side': 'left', 'sticky': 'ns'})],
+                            'sticky': 'nswe'})])
+    # tree view
+    Globals.style.configure("TNavTree.Treeview",
+                            background="#22262a",
+                            foreground="#DDD",
+                            fieldbackground="#22262a",
+                            borderwidth=0,
+                            relief="flat")
+    # Treeview heading style (for column headers)
+    Globals.style.configure("TNavTree.Treeview.Heading",
+                            background="#555",
+                            foreground="#CCC",
+                            relief="flat")
+    # Change selected color
+    Globals.style.map("TNavTree.Treeview",
+                      background=[('selected', '#27547d')])
+    #
+    # interactive form widgets
+    #
+    Globals.style.configure('TButton', background='#5a505d', foreground='white', borderwidth=0)
+    Globals.style.map("TButton",
+                      background=[("active", "#777")])
+    Globals.style.configure('TLabel', background='#303841', foreground='white', borderwidth=1)
+    # primary button
+    Globals.style.configure('TDefaultButton.TButton', background='#3f597c', foreground='white', borderwidth=2)
+    # scrollbar
+    Globals.style.configure("Vertical.TScrollbar", troughcolor="#222")
+    Globals.style.map("Vertical.TScrollbar",
+                      grip=[('!disabled', '#404040'), ('active', '#505050'), ('disabled', '#2d2d2d')],
+                      background=[('!disabled', '#404040'), ('active', '#505050'), ('disabled', '#2d2d2d')])
+    # combobox
+    Globals.style.configure("TCombobox", foreground="#DDD", background="#333",
+                            fieldbackground="#555", selectbackground="#666",
+                            selectforeground="#DDD", arrowcolor="white")
+    Globals.style.map('TCombobox', fieldbackground=[('readonly', '#333')])
+    # spinbox
+    Globals.style.configure("TSpinbox",
+                            fieldbackground="#2E2E2E",  # Dark color for the field background
+                            foreground="#DDD",  # Light color for the text
+                            background="#333",  # Dark color for the Spinbox background (buttons area)
+                            bordercolor="#333",
+                            borderwidth=0,
+                            arrowsize=10)
 
+    Globals.style.map("TSpinbox",
+                      fieldbackground=[("active", "#333333"), ("disabled", "#1E1E1E")],
+                      foreground=[("active", "#FFF"), ("disabled", "#888")],
+                      background=[("readonly", "#2E2E2E")],
+                      arrowcolor=[("active", "#DDD"), ("disabled", "#888")])
+    # slider
+    Globals.style.configure("Horizontal.TScale",
+                            background="#2E2E2E",  # Dark grey, same as the Spinbox
+                            troughcolor="#555555",  # A slightly lighter grey for the trough
+                            bordercolor="#404040",  # A subtle border for the trough
+                            sliderrelief="flat",
+                            sliderlength=20)
 
-def _validate_float(value_after_input, user_input, widget_name):
-    return _validate_number(value_after_input, user_input, widget_name, float)
+    Globals.style.map("Horizontal.TScale",
+                      slider=[("active", "#555555"), ("disabled", "#2E2E2E")],  # Slider styles
+                      background=[("active", "#404040"), ("disabled", "#333333")])  # Background styles when active or disabled
+    # checkbox
+    Globals.style.configure("TCheckbutton",
+                            background="#303841",  # Dark grey background
+                            foreground="#DDD",  # Light grey text color for readability
+                            selectcolor="#555",  # Darker background for the checkbox itself
+                            bordercolor="#555",
+                            relief="flat")
 
-
-def _validate_number(value_after_input, user_input, widget_name, data_type):
-    """
-    - ttk.spinbox does not support paste over selection; pasted content always prepends
-    - so pasting always fails number validation in spinbox
-    - usecase 1: erase current number and input number from scratch
-      - pre-condition: a default number is shown in the entry
-      - intent: user wants to focus, erase, and type in a new number
-      - steps:
-        - click in the entry or select the number
-        - start typing or hit backspace
-        - the old number is erased
-        - as user types, no validation is going on
-        - once the field is out of focus, the new number is validated
-    """
-    # allow '-6.' and append 0 to fix format
-    if truncated_float := data_type == float and value_after_input.endswith('.') and util.is_float_text(value_after_input):
-        value_after_input += '0'
-        return True
-    # '-' is not a valid number and will fail here, beware erase digits in a row with backspace
-    if not util.is_number_text(value_after_input) or value_after_input == '':
-        Globals.root.bell()
-        return False
-    raw_min = Globals.root.nametowidget(widget_name).config('from')[4]
-    raw_max = Globals.root.nametowidget(widget_name).config('to')[4]
-    minval = raw_min if raw_min in (float('-inf'), float('inf')) else data_type(raw_min)
-    maxval = raw_max if raw_max in (float('-inf'), float('inf')) else data_type(raw_max)
-    try:
-        if not (minval <= data_type(value_after_input) <= maxval):
-            Globals.root.bell()
-            util.alert(f"""New value {value_after_input} would fall outside range: [{minval}, {maxval}]; will reset it to default""", 'ERROR')
-            return False
-    except ValueError as e:
-        Globals.root.bell()
-        return False
-    return True
+    Globals.style.map("TCheckbutton",
+                      background=[('active', '#333'), ('selected', '#303841')],  # Darker background when active, blue when selected
+                      foreground=[('disabled', '#888')],  # Greyed out text when disabled
+                      indicatorbackground=[('selected', '#1E6FBA'), ('!selected', '#555')],  # Blue check mark when selected
+                      indicatorforeground=[('selected', '#DDD')])  # Dark grey check mark when not selected
+    Globals.style.configure("TEntry",
+                            foreground="white",  # Light grey for text
+                            background="#555",  # Dark grey for the entry background
+                            insertbackground="#DDD",  # Light grey for the cursor color
+                            fieldbackground="#333333",  # Dark grey for the field background
+                            borderwidth=0,
+                            relief="flat")
+    # menubutton, optinonmenu
+    Globals.style.configure("TMenubutton", background="#333", foreground="#DDD", arrowcolor="white")
+    # Configure the OptionMenu dropdown (menu) colors
+    Globals.style.configure("TMenu", background="#333", foreground="#DDD")
+    Globals.style.map("TMenubutton",
+              background=[("active", "#4D4D4D")],  # Darker shade for hover
+              foreground=[("active", "#FFF")],  # Optional: change text color on hover
+              arrowcolor=[("active", "#FFF")])  # Change arrow color on hover
 
 
 def safe_get_number(tknumvar: tk.Variable):
@@ -93,8 +164,8 @@ class Root(tk.Tk):
             int(screen_size[0] / 2 - size[0] / 2),
             int(screen_size[1] / 2 - size[1] / 2))
         )
-        self.validateIntCmd = (self.register(_validate_int), '%P', '%S', '%W')
-        self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
+        # self.validateIntCmd = (self.register(_validate_int), '%P', '%S', '%W')
+        # self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
         if icon:
             self.iconphoto(True, tk.PhotoImage(file=icon))
         self.controller = None
@@ -243,6 +314,7 @@ class Page(ttk.LabelFrame):
 
     def layout(self):
         self.pack(fill="x", pady=5)
+        self.configure(style='Page.TLabelframe')
 
 
 class ScrollFrame(ttk.Frame):
@@ -255,7 +327,7 @@ class ScrollFrame(ttk.Frame):
             # Update the scrollbars to match the size of the inner frame.
             width, height = (self.frame.winfo_reqwidth(),
                              self.frame.winfo_reqheight())
-            self.canvas.configure(scrollregion=(0, 0, width, height))
+            self.canvas.configure(scrollregion=(0, 0, width, height), bg='#303841', highlightthickness=0)
             if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
                 # update the canvas's width to fit the inner frame
                 self.canvas.config(width=self.frame.winfo_reqwidth())
@@ -267,10 +339,11 @@ class ScrollFrame(ttk.Frame):
 
         super().__init__(master, *args, **kwargs)
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style='Vertical.TScrollbar')
+        # scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
-        self.frame = ttk.Frame(self.canvas)
+        self.frame = ttk.Frame(self.canvas, style='TRootFrame.TFrame')
         frame_id = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
 
         # self.canvas.bind("<Configure>", self._on_canvas_configure)
@@ -308,7 +381,7 @@ class Form(ttk.PanedWindow):
     def __init__(self, master, page_titles: list[str], **kwargs):
         super().__init__(master, orient=tk.HORIZONTAL)
         # Left panel: navigation bar with filtering support
-        self.navPane = ttk.Frame(self, width=200)
+        self.navPane = ttk.Frame(self, width=200, style='TRootFrame.TFrame')
         self.navPane.pack_propagate(False)  # Prevent the widget from resizing to its contents
         # Create a new frame for the search box and treeview
         search_box = ttk.Frame(self.navPane)
@@ -318,22 +391,25 @@ class Form(ttk.PanedWindow):
         self.searchEntry.bind("<KeyRelease>", self.filter_entries)
         self.searchEntry.bind("<Control-BackSpace>", self._on_clear_search)
         # Place the treeview below the search box
-        self.tree = ttk.Treeview(self.navPane, show="tree")
+        self.tree = ttk.Treeview(self.navPane, show="tree", style='TNavTree.Treeview')
         self.tree.heading("#0", text="", anchor="w")  # Hide the column header
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.update_entries)
         # Right panel: entries in page
-        self.entryPane = ScrollFrame(self)
+        self.entryPane = ScrollFrame(self, style='TRootFrame.TFrame')
         # build form with navbar and page frame
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
-        self.pages = {title.lower(): Page(self.entryPane.frame, title.title()) for title in page_titles}
+        self.pages = {title.lower(): Page(self.entryPane.frame, title.title(), style='TRootFrame.TFrame') for title in page_titles}
         self.prompt = Prompt()
         self.init()
         self.layout()
 
     def layout(self):
         self.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.configure(style='TRootFrame.TFrame')
+        node_font = tkFont(family="Helvetica", size=10, weight="bold")
+        self.tree.tag_configure('boldtext', font=node_font)
 
     def init(self):
         # Populate tree with page titles
@@ -412,7 +488,7 @@ class Entry(ttk.Frame):
     """
 
     def __init__(self, master: Page, key, text, widget_constructor, default, doc, presetable=True, **widget_kwargs):
-        super().__init__(master)
+        super().__init__(master, style='TRootFrame.TFrame')
         assert isinstance(self.master, Page)
         self.master.add([self])
         self.key = key
@@ -422,7 +498,7 @@ class Entry(ttk.Frame):
         # model-binding
         self.data = None
         # title
-        self.label = ttk.Label(self, text=self.text, cursor='hand2')
+        self.label = ttk.Label(self, text=self.text, cursor='hand2', style='TLabel')
         self.label.pack(side='top', expand=True, padx=5, pady=2, anchor="w")
         self.label.bind("<Double-Button-1>", lambda e: tkmsgbox.showinfo("Help", doc))
         # field
@@ -432,6 +508,7 @@ class Entry(ttk.Frame):
         # context menu
         self.contextMenu = tk.Menu(self, tearoff=0)
         # use a context menu instead of direct clicking to avoid accidental reset
+        self.contextMenu.add_command(label="Help", command=lambda: tkmsgbox.showinfo("Help", doc))
         self.contextMenu.add_command(label="Reset", command=self.reset)
         # maximize context-menu hitbox
         self.field.bind("<Button-2>", self.show_context_menu)
@@ -485,8 +562,8 @@ class FormMenu(tk.Menu):
         self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
         self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
         self.fileMenu.add_command(label="Quit", command=self.on_quit, accelerator="Ctrl+Q")
-        # self.master.bind("<Control-q>", lambda event: self.on_quit())
-        # self.master.bind("<Control-Q>", lambda event: self.on_quit())
+        self.master.bind("<Control-q>", lambda event: self.on_quit())
+        self.master.bind("<Control-Q>", lambda event: self.on_quit())
         self.helpMenu = tk.Menu(self, tearoff=False)
         self.helpMenu.add_command(label="Open User Guide", command=self.on_open_help, accelerator="F1")
         self.helpMenu.add_command(label="Open Diagnostics", command=self.on_open_diagnostics)
@@ -749,7 +826,7 @@ class FormActionBar(ttk.Frame):
         self.separator = ttk.Separator(self, orient="horizontal")
         # Create Cancel and Submit buttons
         self.cancelBtn = ttk.Button(self, text="Stop", command=self.on_cancel)
-        self.submitBtn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2')
+        self.submitBtn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2', style='TDefaultButton.TButton')
         # layout: keep the order
         self.separator.pack(fill="x")
         # left-most must pack after separator to avoid occluding the border
@@ -760,6 +837,7 @@ class FormActionBar(ttk.Frame):
 
     def layout(self):
         self.pack(side="bottom", fill="x")
+        self.configure(style='TActionFrame.TFrame')
 
     def on_reset(self, event=None):
         self.controller.on_reset()
@@ -796,6 +874,7 @@ class WaitBar(ttk.Frame):
         self.bar.pack(side="right", fill="x", expand=True)
         self.label.place(relx=0.5, rely=0.5, anchor='center')
         self.pack(side='bottom', fill='both', expand=False)
+        self.bar.configure(style='Custom.Horizontal.TProgressbar')
 
     def poll(self, wait_ms=100):
         """
@@ -852,11 +931,12 @@ class NumberEntry(Entry):
         # model-binding
         self.data = self._init_data(datatype)
         # view
-        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step)
+        self.field.configure(style='TRootFrame.TFrame')
+        self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, style='TSpinbox')
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
             self.sliderRatio = tk.DoubleVar(value=(self.data.get() - minmax[0]) / (minmax[1] - minmax[0]))
-            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.sliderRatio, command=self.on_scale_changed)
+            self.slider = ttk.Scale(self.field, from_=0.0, to=1.0, orient="horizontal", variable=self.sliderRatio, command=self.on_scale_changed, style='Horizontal.TScale')
             self.slider.grid(row=0, column=1, sticky="ew")
             self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
         self.spinbox.bind('<KeyPress>', self.on_start_typing)
@@ -983,7 +1063,7 @@ class SingleOptionEntry(Entry):
         super().__init__(master, key, text, ttk.Combobox, default, doc, presetable, values=options, **kwargs)
         # model-binding
         self.data = self._init_data(tk.StringVar)
-        self.field.configure(textvariable=self.data, state='readonly')
+        self.field.configure(textvariable=self.data, state='readonly', style='TCombobox')
         self.index = tk.IntVar(name='index', value=self.get_selection_index())
         self.field.bind("<<ComboboxSelected>>", self.on_option_selected)
 
@@ -1094,7 +1174,7 @@ class TextEntry(Entry):
         self.data.trace_add("write", self._on_data_changed)
         self.field.insert("1.0", default)
         # allow paste
-        btn_frame = ttk.Frame(self, padding=0)
+        btn_frame = ttk.Frame(self, padding=0, style='TRootFrame.TFrame')
         btn_frame.pack(side='bottom', fill='x', expand=True)
         self.primaryBtn = ttk.Button(btn_frame, text="Paste", command=self.on_primary_action)
         self.primaryBtn.pack(side='left', padx=5, anchor="w")
@@ -1102,6 +1182,8 @@ class TextEntry(Entry):
         self.secondaryBtn.pack(side='left', padx=5, anchor="w")
         # helper
         self.lastContent = default
+        # CAUTION: no way to customize the scrollbar color
+        # self.field.vbar['troughcolor'] = '#222'
 
     def undo(self):
         try:
@@ -1206,8 +1288,9 @@ class FileEntry(TextEntry):
         """
         if not (files := self.get_data()):
             return
-        if len(files) == 1:
-            util.open_in_editor(files[0])
+        if isinstance(files, str) or len(files) == 1:
+            file = files if isinstance(files, str) else files[0]
+            util.open_in_editor(file)
             return
         # multiple files
         drvwise_dirs = util.get_drivewise_commondirs(files)
@@ -1280,7 +1363,7 @@ class ReadOnlyEntry(Entry):
         super().__init__(master, key, text, ttk.Label, default, doc, presetable=False, **widget_kwargs)
         self.data = self._init_data(tk.StringVar)
         # allow copy
-        self.btnFrame = ttk.Frame(self, padding=5)
+        self.btnFrame = ttk.Frame(self, padding=5, style='TRootFrame.TFrame')
         self.btnFrame.pack(side='bottom', fill='x', expand=True)
         self.primaryBtn = ttk.Button(self.btnFrame, text="Copy", command=self.on_primary_action)
         self.primaryBtn.pack(side='left', padx=5, anchor="w")
@@ -1352,8 +1435,8 @@ class ListEntry(Entry):
         btn_frame.pack(side='bottom', fill='x', expand=False)
         self.btnAddItem = ttk.Button(btn_frame, text="Add", command=self.on_add)
         self.btnAddItem.pack(side=tk.LEFT)
-        self.menubtnSaveLoad = tk.Menubutton(btn_frame, text="Save/Load")
-        self.menu = tk.Menu(self.menubtnSaveLoad, tearoff=0)
+        self.menubtnSaveLoad = ttk.Menubutton(btn_frame, text="Save/Load")
+        self.menu = tk.Menu(self.menubtnSaveLoad, tearoff=False)
         self.menubtnSaveLoad.config(menu=self.menu)
         # Add menu items: user will load more often than save when filling forms, so load is placed first
         self.menu.add_command(label="Load ...", command=self.on_load)

@@ -103,6 +103,7 @@ class Controller(ui.FormController):
 
 def main():
     ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'icon.png'))
+    ui.init_style()
     form = ui.Form(ui.Globals.root, ['general', 'output'])
     ctrlr = Controller(form)
     ui.Globals.root.set_controller(ctrlr)

@@ -62,6 +62,7 @@ class Controller(ui.FormController):
 @util.rerun_lock(name=__file__, folder=osp.abspath(f'{util.get_platform_tmp_dir()}/kkpyui/character_design'))
 def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
+    ui.init_style()
     form = ui.Form(ui.Globals.root, ['profile', 'plot', 'output'])
     ctrlr = Controller(form)
     ui.Globals.root.set_controller(ctrlr)
