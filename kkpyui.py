@@ -27,39 +27,38 @@ def init_style():
     # fonts
     node_font = tkFont(family="Helvetica", size=10, weight="bold")
     # frames
-    Globals.style.configure('TRootFrame.TFrame', background='#303841', foreground='white', borderwidth=5)
-    Globals.style.configure('TNavFrame.TFrame', background='#22262a', foreground='white', borderwidth=0)
+    Globals.style.configure('TFrame', background='#303841', foreground='white', borderwidth=5)
     # form
     Globals.style.configure('Page.TLabelframe', background="#303841", foreground="#DDD", relief="flat", borderwidth=2, font=node_font)
     Globals.style.configure('Page.TLabelframe.Label', background="#303841", foreground="#DDD")
     # action bar
-    Globals.style.configure('TActionFrame.TFrame', background='#2e3238', foreground='white', borderwidth=0)
+    Globals.style.configure('ActionBar.TFrame', background='#2e3238', foreground='white', borderwidth=0)
     # progress bar
-    Globals.style.configure("Custom.Horizontal.TProgressbar",
+    Globals.style.configure("Horizontal.TProgressbar",
                             troughcolor='#1c1d1f',  # Dark background
                             background='#5bc0de',  # Greenish progress bar
                             bordercolor='#1c1d1f',
                             lightcolor='#1c1d1f',
                             darkcolor='#1c1d1f')
-    Globals.style.layout("Custom.Horizontal.TProgressbar",
+    Globals.style.layout("Horizontal.TProgressbar",
                          [('Horizontal.Progressbar.trough',
                            {'children': [('Horizontal.Progressbar.pbar',
                                           {'side': 'left', 'sticky': 'ns'})],
                             'sticky': 'nswe'})])
     # tree view
-    Globals.style.configure("TNavTree.Treeview",
+    Globals.style.configure("NavBar.Treeview",
                             background="#22262a",
                             foreground="#DDD",
                             fieldbackground="#22262a",
                             borderwidth=0,
                             relief="flat")
     # Treeview heading style (for column headers)
-    Globals.style.configure("TNavTree.Treeview.Heading",
+    Globals.style.configure("NavBar.Treeview.Heading",
                             background="#555",
                             foreground="#CCC",
                             relief="flat")
     # Change selected color
-    Globals.style.map("TNavTree.Treeview",
+    Globals.style.map("NavBar.Treeview",
                       background=[('selected', '#27547d')])
     #
     # interactive form widgets
@@ -69,7 +68,7 @@ def init_style():
                       background=[("active", "#777")])
     Globals.style.configure('TLabel', background='#303841', foreground='white', borderwidth=1)
     # primary button
-    Globals.style.configure('TDefaultButton.TButton', background='#3f597c', foreground='white', borderwidth=2)
+    Globals.style.configure('Primary.TButton', background='#3f597c', foreground='white', borderwidth=2)
     # scrollbar
     Globals.style.configure("Vertical.TScrollbar", troughcolor="#222")
     Globals.style.map("Vertical.TScrollbar",
@@ -343,7 +342,7 @@ class ScrollFrame(ttk.Frame):
         # scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
-        self.frame = ttk.Frame(self.canvas, style='TRootFrame.TFrame')
+        self.frame = ttk.Frame(self.canvas,)
         frame_id = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
 
         # self.canvas.bind("<Configure>", self._on_canvas_configure)
@@ -381,7 +380,7 @@ class Form(ttk.PanedWindow):
     def __init__(self, master, page_titles: list[str], **kwargs):
         super().__init__(master, orient=tk.HORIZONTAL)
         # Left panel: navigation bar with filtering support
-        self.navPane = ttk.Frame(self, width=200, style='TRootFrame.TFrame')
+        self.navPane = ttk.Frame(self, width=200,)
         self.navPane.pack_propagate(False)  # Prevent the widget from resizing to its contents
         # Create a new frame for the search box and treeview
         search_box = ttk.Frame(self.navPane)
@@ -391,23 +390,23 @@ class Form(ttk.PanedWindow):
         self.searchEntry.bind("<KeyRelease>", self.filter_entries)
         self.searchEntry.bind("<Control-BackSpace>", self._on_clear_search)
         # Place the treeview below the search box
-        self.tree = ttk.Treeview(self.navPane, show="tree", style='TNavTree.Treeview')
+        self.tree = ttk.Treeview(self.navPane, show="tree", style='NavBar.Treeview')
         self.tree.heading("#0", text="", anchor="w")  # Hide the column header
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.update_entries)
         # Right panel: entries in page
-        self.entryPane = ScrollFrame(self, style='TRootFrame.TFrame')
+        self.entryPane = ScrollFrame(self,)
         # build form with navbar and page frame
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
-        self.pages = {title.lower(): Page(self.entryPane.frame, title.title(), style='TRootFrame.TFrame') for title in page_titles}
+        self.pages = {title.lower(): Page(self.entryPane.frame, title.title(),) for title in page_titles}
         self.prompt = Prompt()
         self.init()
         self.layout()
 
     def layout(self):
         self.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        self.configure(style='TRootFrame.TFrame')
+        self.configure(style='TFrame')
         node_font = tkFont(family="Helvetica", size=10, weight="bold")
         self.tree.tag_configure('boldtext', font=node_font)
 
@@ -488,7 +487,7 @@ class Entry(ttk.Frame):
     """
 
     def __init__(self, master: Page, key, text, widget_constructor, default, doc, presetable=True, **widget_kwargs):
-        super().__init__(master, style='TRootFrame.TFrame')
+        super().__init__(master,)
         assert isinstance(self.master, Page)
         self.master.add([self])
         self.key = key
@@ -828,7 +827,7 @@ class FormActionBar(ttk.Frame):
         self.separator = ttk.Separator(self, orient="horizontal")
         # Create Cancel and Submit buttons
         self.cancelBtn = ttk.Button(self, text="Stop", command=self.on_cancel)
-        self.submitBtn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2', style='TDefaultButton.TButton')
+        self.submitBtn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2', style='Primary.TButton')
         # layout: keep the order
         self.separator.pack(fill="x")
         # left-most must pack after separator to avoid occluding the border
@@ -839,7 +838,7 @@ class FormActionBar(ttk.Frame):
 
     def layout(self):
         self.pack(side="bottom", fill="x")
-        self.configure(style='TActionFrame.TFrame')
+        self.configure(style='ActionBar.TFrame')
 
     def on_reset(self, event=None):
         self.controller.on_reset()
@@ -876,7 +875,6 @@ class WaitBar(ttk.Frame):
         self.bar.pack(side="right", fill="x", expand=True)
         self.label.place(relx=0.5, rely=0.5, anchor='center')
         self.pack(side='bottom', fill='both', expand=False)
-        self.bar.configure(style='Custom.Horizontal.TProgressbar')
 
     def poll(self, wait_ms=100):
         """
@@ -933,7 +931,7 @@ class NumberEntry(Entry):
         # model-binding
         self.data = self._init_data(datatype)
         # view
-        self.field.configure(style='TRootFrame.TFrame')
+        self.field.configure(style='TFrame')
         self.spinbox = ttk.Spinbox(self.field, textvariable=self.data, from_=minmax[0], to=minmax[1], increment=step, style='TSpinbox')
         self.spinbox.grid(row=0, column=0, padx=(0, 5))  # Adjust padx value
         if not (is_infinite := minmax[0] in (float('-inf'), float('inf')) or minmax[1] in (float('-inf'), float('inf'))):
@@ -1176,7 +1174,7 @@ class TextEntry(Entry):
         self.data.trace_add("write", self._on_data_changed)
         self.field.insert("1.0", default)
         # allow paste
-        btn_frame = ttk.Frame(self, padding=0, style='TRootFrame.TFrame')
+        btn_frame = ttk.Frame(self, padding=0,)
         btn_frame.pack(side='bottom', fill='x', expand=True)
         self.primaryBtn = ttk.Button(btn_frame, text="Paste", command=self.on_primary_action)
         self.primaryBtn.pack(side='left', padx=5, anchor="w")
@@ -1366,7 +1364,7 @@ class ReadOnlyEntry(Entry):
         super().__init__(master, key, text, ttk.Label, default, doc, presetable=False, **widget_kwargs)
         self.data = self._init_data(tk.StringVar)
         # allow copy
-        self.btnFrame = ttk.Frame(self, padding=5, style='TRootFrame.TFrame')
+        self.btnFrame = ttk.Frame(self, padding=5,)
         self.btnFrame.pack(side='bottom', fill='x', expand=True)
         self.primaryBtn = ttk.Button(self.btnFrame, text="Copy", command=self.on_primary_action)
         self.primaryBtn.pack(side='left', padx=5, anchor="w")
@@ -1434,7 +1432,7 @@ class ListEntry(Entry):
         self.listBox.bind('<BackSpace>', self.on_delete_selected)
         self.listBox.bind('<Control-a>', self.on_select_all)
         # buttons
-        btn_frame = ttk.Frame(self.field, style='TRootFrame.TFrame')
+        btn_frame = ttk.Frame(self.field,)
         btn_frame.pack(side='bottom', fill='x', expand=False)
         self.btnAddItem = ttk.Button(btn_frame, text="Add", command=self.on_add)
         self.btnAddItem.pack(side=tk.LEFT)
