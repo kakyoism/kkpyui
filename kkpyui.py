@@ -1184,6 +1184,7 @@ class TextEntry(Entry):
         self.lastContent = default
         # CAUTION: no way to customize the scrollbar color
         # self.field.vbar['troughcolor'] = '#222'
+        self.field.configure(foreground='white', background='#222', insertbackground='white', insertwidth=2)
 
     def undo(self):
         try:
