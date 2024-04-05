@@ -511,7 +511,9 @@ class Entry(ttk.Frame):
         self.contextMenu.add_command(label="Help", command=lambda: tkmsgbox.showinfo("Help", doc))
         self.contextMenu.add_command(label="Reset", command=self.reset)
         # maximize context-menu hitbox
+        # - macos
         self.field.bind("<Button-2>", self.show_context_menu)
+        # - windows
         self.label.bind("<Button-3>", self.show_context_menu)
         # getting out of focus so that key strokes will not be intercepted by the entry
         self.field.bind("<Escape>", lambda event: Globals.root.focus_set())
