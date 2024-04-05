@@ -865,7 +865,7 @@ class NumberEntry(Entry):
 
     def set_data(self, value):
         self.data.set(value)
-        if hasattr(self, 'ratio'):
+        if hasattr(self, 'sliderRatio'):
             self._sync_scale_with_spinbox()
 
     def on_start_typing(self, event):
@@ -925,7 +925,7 @@ class NumberEntry(Entry):
         except ValueError as e:
             self._alert_and_refocus(value, f'{self.text} ({value}) triggerd unknown error: {e}')
             return False
-        if hasattr(self, 'ratio'):
+        if hasattr(self, 'sliderRatio'):
             self._sync_scale_with_spinbox()
         return True
 
@@ -1011,6 +1011,9 @@ class SingleOptionEntry(Entry):
     def set_tracer(self, handler):
         self.index.trace_add('write', callback=lambda name, idx, mode, var=self.index: handler(name, var, idx, mode))
 
+    def validate_data(self):
+        return True
+
 
 class MultiOptionEntry(Entry):
     def __init__(self, master: Page, key, text, options, default, doc, presetable=True, **kwargs):
@@ -1061,12 +1064,18 @@ class MultiOptionEntry(Entry):
         for opt in self.data:
             self.menu.add_checkbutton(label=opt, variable=self.data[opt], onvalue=True, offvalue=False)
 
+    def validate_data(self):
+        return True
+
 
 class BoolEntry(Entry):
     def __init__(self, master: Page, key, text, default, doc, presetable=True, **kwargs):
         super().__init__(master, key, text, ttk.Checkbutton, default, doc, presetable, **kwargs)
         self.data = self._init_data(tk.BooleanVar)
         self.field.configure(variable=self.data)
+
+    def validate_data(self):
+        return True
 
 
 class TextEntry(Entry):
