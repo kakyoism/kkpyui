@@ -1437,7 +1437,7 @@ class ListEntry(Entry):
         self.btnAddItem = ttk.Button(btn_frame, text="Add", command=self.on_add)
         self.btnAddItem.pack(side=tk.LEFT)
         self.menubtnSaveLoad = ttk.Menubutton(btn_frame, text="Save/Load")
-        self.menu = tk.Menu(self.menubtnSaveLoad, tearoff=False)
+        self.menu = tk.Menu(self.menubtnSaveLoad, tearoff=False, bg='#333', fg='#DDD', bd=1, relief='flat', activebackground='#444', activeforeground='#FFF')
         self.menubtnSaveLoad.config(menu=self.menu)
         # Add menu items: user will load more often than save when filling forms, so load is placed first
         self.menu.add_command(label="Load ...", command=self.on_load)
