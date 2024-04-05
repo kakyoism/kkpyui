@@ -1103,7 +1103,7 @@ class MultiOptionEntry(Entry):
         # build option menu
         self.selectAll = tk.BooleanVar(name='All', value=True)
         self.selectNone = tk.BooleanVar(name='None', value=False)
-        self.menu = tk.Menu(self.field, tearoff=False)
+        self.menu = tk.Menu(self.field, tearoff=False, bg='#333', fg='#DDD', bd=1, relief='flat', activebackground='#444', activeforeground='#FFF')
         self.field.configure(menu=self.menu)
         self._build_options()
 
