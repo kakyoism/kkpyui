@@ -506,7 +506,7 @@ class Entry(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.field.pack(expand=True, padx=5, pady=2, anchor="w")
         # context menu
-        self.contextMenu = tk.Menu(self, tearoff=0)
+        self.contextMenu = tk.Menu(self, tearoff=0, bg='#333', fg='#DDD', bd=1, relief='flat', activebackground='#444', activeforeground='#FFF')
         # use a context menu instead of direct clicking to avoid accidental reset
         self.contextMenu.add_command(label="Help", command=lambda: tkmsgbox.showinfo("Help", doc))
         self.contextMenu.add_command(label="Reset", command=self.reset)
@@ -558,13 +558,13 @@ class FormMenu(tk.Menu):
         assert isinstance(self.master, tk.Tk)
         self.master.configure(menu=self)
         self.controller = controller
-        self.fileMenu = tk.Menu(self, tearoff=False)
+        self.fileMenu = tk.Menu(self, tearoff=False, bg='#333', fg='#DDD', bd=1, relief='flat', activebackground='#444', activeforeground='#FFF')
         self.fileMenu.add_command(label="Load Preset ...", command=self.on_load_preset)
         self.fileMenu.add_command(label="Save Preset ...", command=self.on_save_preset)
         self.fileMenu.add_command(label="Quit", command=self.on_quit, accelerator="Ctrl+Q")
         self.master.bind("<Control-q>", lambda event: self.on_quit())
         self.master.bind("<Control-Q>", lambda event: self.on_quit())
-        self.helpMenu = tk.Menu(self, tearoff=False)
+        self.helpMenu = tk.Menu(self, tearoff=False, bg='#333', fg='#DDD', bd=1, relief='flat', activebackground='#444', activeforeground='#FFF')
         self.helpMenu.add_command(label="Open User Guide", command=self.on_open_help, accelerator="F1")
         self.helpMenu.add_command(label="Open Diagnostics", command=self.on_open_diagnostics)
         self.helpMenu.add_command(label="Report A Problem", command=self.on_report_issue)
