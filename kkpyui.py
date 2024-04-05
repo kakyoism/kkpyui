@@ -1422,8 +1422,8 @@ class ListEntry(Entry):
         # table
         lst_frame = ttk.Frame(self.field)
         lst_frame.pack(side="top", fill="both", expand=True)
-        scrollbar = ttk.Scrollbar(lst_frame)
-        self.listBox = tk.Listbox(lst_frame, yscrollcommand=scrollbar.set, selectmode="extended")
+        scrollbar = ttk.Scrollbar(lst_frame, style='Vertical.TScrollbar')
+        self.listBox = tk.Listbox(lst_frame, yscrollcommand=scrollbar.set, selectmode="extended", background='#222', foreground='white', selectbackground='#444', selectforeground='white', font=('Courier', 12))
         scrollbar.configure(command=self.listBox.yview)
         scrollbar.pack(side="right", fill="y")
         self.listBox.pack(side="left", fill="both", expand=True)
