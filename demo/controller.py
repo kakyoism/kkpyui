@@ -45,11 +45,10 @@ class Controller(ui.FormController):
     def run_task(self, event=None):
         """
         - assume csound has started
-        - caller is responsible for updating model
+        - caller (ui submit action) is responsible for updating model
         """
         if self.playing:
             return False
-        # self.update_model()
         if self.curEngine != self.model['engine']:
             self.on_shutdown()
             self.on_startup()

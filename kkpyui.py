@@ -619,7 +619,6 @@ class FormController:
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
         self.taskThread = None
         self.taskStopEvent = Globals.taskStopEvent
-        self.prompt = Prompt()
 
     def validate_form(self):
         return self.form.validate_entries()

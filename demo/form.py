@@ -29,7 +29,7 @@ class Controller(ui.FormController):
         self.info('Dev: Just use it! Trust yourself and the log!')
 
     def on_open_diagnostics(self):
-        log = util.find_log_path(self.prompt.logger)
+        log = util.find_log_path(self.form.prompt.logger)
         if not log:
             return
         util.open_in_browser(log)
