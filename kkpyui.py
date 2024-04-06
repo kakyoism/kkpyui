@@ -127,7 +127,7 @@ def init_style():
     # menubutton, optinonmenu
     Globals.style.configure("TMenubutton", background="#333", foreground="#DDD", arrowcolor="white")
     # Configure the OptionMenu dropdown (menu) colors
-    Globals.style.configure("TMenu", background="#333", foreground="#DDD")
+    Globals.style.configure("TMenu", background="#333", foreground="#DDD", activebackground='#444', activeforeground='#FFF')
     Globals.style.map("TMenubutton",
               background=[("active", "#4D4D4D")],  # Darker shade for hover
               foreground=[("active", "#FFF")],  # Optional: change text color on hover
