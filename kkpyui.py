@@ -619,6 +619,7 @@ class FormController:
         self.set_progress = lambda title, progress, description: Globals.progressQueue.put((title, progress, description))
         self.taskThread = None
         self.taskStopEvent = Globals.taskStopEvent
+        self.prompt = Prompt()
 
     def validate_form(self):
         return self.form.validate_entries()
@@ -705,7 +706,7 @@ class FormController:
         """
         self.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
 
-    def on_report_bug(self):
+    def on_report_issue(self):
         """
         - report bug to the developer
         - subclass this
