@@ -35,11 +35,11 @@ def init_style():
     Globals.style.configure('ActionBar.TFrame', background='#2e3238', foreground='white', borderwidth=0)
     # progress bar
     Globals.style.configure("Horizontal.TProgressbar",
-                            troughcolor='#1c1d1f',  # Dark background
+                            troughcolor='#2e3238',  # Dark background
                             background='#5bc0de',  # Greenish progress bar
                             bordercolor='#1c1d1f',
-                            lightcolor='#1c1d1f',
-                            darkcolor='#1c1d1f')
+                            lightcolor='#2e3238',
+                            darkcolor='#2e3238')
     Globals.style.layout("Horizontal.TProgressbar",
                          [('Horizontal.Progressbar.trough',
                            {'children': [('Horizontal.Progressbar.pbar',
