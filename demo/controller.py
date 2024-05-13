@@ -38,7 +38,6 @@ class Controller(ui.FormController):
     def __init__(self, fm=None, model=None):
         super().__init__(fm, model)
         self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
-        self.initialized = False
         self.playing = False
         self.curEngine = None
 
