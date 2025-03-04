@@ -14,8 +14,23 @@ from tkinter.font import Font as tkFont
 import kkpyutil as util
 
 
+class ProgressEvent(threading.Event):
+    def __init__(self):
+        super().__init__()
+        self.topic = None
+        self.progress = -1
+        self.description = None
+
+    def set_progress(self, topic, progress, description):
+        self.topic = topic
+        self.progress = progress
+        self.description = description
+        self.set()
+
+
 class Globals:
     root = None
+    progEvent = ProgressEvent()
     abortEvent = threading.Event()
     style = None
 
@@ -617,6 +632,7 @@ class FormController:
         self.model = model
         self.taskThread = None
         self.progUI = None
+        self.progEvent = Globals.progEvent
         self.abortEvent = Globals.abortEvent
         self.toBlockWhileAwait = to_block
 
@@ -669,16 +685,22 @@ class FormController:
         self.progUI = prog_ui
 
     def start_progress(self):
-        self.progUI.start('Processing ...')
+        """
+        - only used by indeterminate progressbar
+        """
+        self.send_progress('Progress', 0, 'Starting ...')
 
     def stop_progress(self):
         """
-        - progressbar will stop where it is at the moment
+        - only used by indeterminate progressbar
         """
-        self.progUI.stop('Stopped')
+        self.send_progress('Progress', 100, 'Starting ...')
 
     def send_progress(self, topic, progress, description):
-        self.progUI.send_progress(topic, progress, description)
+        """
+        - called by the task thread
+        """
+        self.progEvent.set_progress(topic, progress, description)
 
     def get_latest_model(self):
         """
@@ -688,9 +710,10 @@ class FormController:
         return types.SimpleNamespace(**self.model)
 
     def await_task(self, wait_ms=100):
-        self.progUI.poll(33)
+        self.progUI.poll(wait_ms)
         if self.toBlockWhileAwait:
             self.taskThread.join()
+            self.on_task_done()
 
     #
     # callbacks
@@ -743,8 +766,7 @@ class FormController:
         self.taskThread = threading.Thread(target=self.run_task, daemon=True)
         self.taskThread.start()
         print('awaiting ...')
-        self.await_task()
-        # self.taskThread.join()
+        self.await_task(33)
 
     def run_task(self):
         """
@@ -766,7 +788,6 @@ class FormController:
         """
         if self.taskThread and self.taskThread.is_alive():
             self.abortEvent.set()
-            self.await_task()
 
     def on_quit(self, event=None):
         """
@@ -804,7 +825,6 @@ class FormController:
         self.abortEvent.set()  # progressbar needs to be stopped
         # task should have received stop event, let's wait for it to end
         # it may choose a safe-quit path, but maybe not (damage)
-        self.await_task()
         return True
 
     def on_activate(self, event=None):
@@ -867,19 +887,6 @@ class FormActionBar(ttk.Frame):
     def on_submit(self, event=None):
         self.controller.on_submit()
 
-class ProgressEvent(threading.Event):
-    def __init__(self):
-        super().__init__()
-        self.topic = None
-        self.progress = -1
-        self.description = None
-
-    def set_progress(self, topic, progress, description):
-        self.topic = topic
-        self.progress = progress
-        self.description = description
-        self.set()
-
 
 class WaitBar(ttk.Frame):
     """
@@ -896,7 +903,7 @@ class WaitBar(ttk.Frame):
         self.bar = ttk.Progressbar(self, orient="horizontal", mode="indeterminate")
         self.label = ttk.Label(self.bar, textvariable=self.desc, text='...', foreground='white', background='black')
         self.topic = None
-        self.progEvent = ProgressEvent()
+        self.progEvent = Globals.progEvent
         self.abortEvent = Globals.abortEvent  # read-only here, set by app
         self.bind(producer)
         self.layout()
@@ -925,7 +932,8 @@ class WaitBar(ttk.Frame):
         """
         # self.send_progress(topic, 0, description)
         self.topic = topic
-        self.desc = description
+        if description:
+            self.desc = description
         self.bar.start()
 
     def stop(self, description: str = None):
@@ -933,14 +941,17 @@ class WaitBar(ttk.Frame):
         - called by app's task thread
         """
         # self.send_progress(self.topic, 100, description)
-        self.desc = description
+        if description:
+            self.desc = description
         self.bar.stop()
 
     def send_progress(self, topic: str, progress: int, description: str = None):
         """
         - call this in app's controller.run_task() (task thread) to send progress to ui thread
         """
+        # print(f'Processing ... {progress}%')
         self.progEvent.set_progress(topic, progress, description)
+        # print('Progress sent.')
 
     def receive_progress(self, topic: str, progress: int, description: str = '...'):
         """
@@ -954,6 +965,7 @@ class WaitBar(ttk.Frame):
             self.abortEvent.set()
         self.desc.set(description)
         self.bar.update_idletasks()
+        self.update_idletasks()
         self.master.update_idletasks()
         self.progEvent.clear()
 
@@ -964,14 +976,13 @@ class WaitBar(ttk.Frame):
         """
         if self.bar.cget('mode') == 'indeterminate':
             return
-        # print(f'polling ... 1: to stop: {self._scheduled_to_stop()}, set: {self.progEvent.is_set()}')
+        print(f'polling ... 1: to stop: {self._scheduled_to_stop()}, set: {self.progEvent.is_set()}')
         if not self._scheduled_to_stop() and self.progEvent.is_set():
-            # print('polling ... 2')
+            print('polling ... 2')
             self.receive_progress(self.progEvent.topic, self.progEvent.progress, self.progEvent.description)
-            # print(f'polling ... 3: {self.prog.get()}%')
+            print(f'polling ... 3: {self.prog.get()}%')
         if self._scheduled_to_stop():
             # print('polling ... 4')
-            self.on_task_done()
             self.stop()
             return
         self.master.after(wait_ms, self.poll)
@@ -998,9 +1009,19 @@ class ProgressBar(WaitBar):
         self.master.update_idletasks()
         self.progEvent.clear()
         if progress >= 100:
-            breakpoint()
             self.abortEvent.set()
 
+    def poll(self, wait_ms=100):
+        """
+        - for modal progressbar only
+        - do not use this for non-blocking scenarios such as music player's control panel
+        """
+        if not self._scheduled_to_stop() and self.progEvent.is_set():
+            self.receive_progress(self.progEvent.topic, self.progEvent.progress, self.progEvent.description)
+        if self._scheduled_to_stop():
+            self.stop()
+            return
+        self.master.after(wait_ms, self.poll)
 
 
 class NumberEntry(Entry):

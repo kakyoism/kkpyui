@@ -40,17 +40,23 @@ class Controller(ui.FormController):
     def run_task(self):
         """
         - run in background thread to avoid blocking UI
+        - do not run anything bound to tkinter widgets (main thread) here
         """
         # self.start_progress()
         for p in range(101):
-            # Simulate a task
-            time.sleep(0.01)
-            # print(f'Processing ... {p+1}%')
-            self.send_progress('/processing', p, 'Processing ...')
             if self.is_scheduled_to_stop():
                 print('Stopped.')
                 self.stop_progress()
                 return
+            self.send_progress('/processing', p, f'Processing ... {p}%')
+            # Simulate a task
+            time.sleep(1)
+
+    def await_task(self, wait_ms=100):
+        self.progUI.poll(wait_ms)
+        if self.toBlockWhileAwait:
+            self.taskThread.join()
+            self.on_task_done()
 
     def on_task_done(self):
         out = vars(self.get_latest_model())
@@ -66,7 +72,8 @@ def main():
     ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
     ui.init_style()
     form = ui.Form(ui.Globals.root, ['profile', 'plot', 'output'])
-    ctrlr = Controller(form)
+    # ensure progressbar should not block while waiting
+    ctrlr = Controller(form, None, False)
     ui.Globals.root.set_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
