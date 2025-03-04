@@ -35,8 +35,8 @@ class Controller(ui.FormController):
       - kk OSClisten gilisten, "/quit", "i", gkquit
     """
 
-    def __init__(self, fm=None, model=None):
-        super().__init__(fm, model)
+    def __init__(self, fm=None, model=None, to_block=False):
+        super().__init__(fm, model, to_block)
         self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
         self.playing = False
         self.curEngine = None
@@ -81,6 +81,10 @@ class Controller(ui.FormController):
         util.kill_process_by_name('csound')
         return True
 
+    def on_task_done(self):
+        self.stop_progress()
+        self.playing = False
+
     def on_freq_changed(self, name, var, index, mode):
         freq = ui.safe_get_number(var)
         print(f'{name=}={freq}, {index=}, {mode=}')
@@ -103,7 +107,7 @@ def main():
     ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'icon.png'))
     ui.init_style()
     form = ui.Form(ui.Globals.root, ['general', 'output'])
-    ctrlr = Controller(form)
+    ctrlr = Controller(form, None, False)
     ui.Globals.root.set_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
@@ -118,8 +122,7 @@ def main():
     freq_entry.set_tracer(ctrlr.on_freq_changed)
     gain_entry.set_tracer(ctrlr.on_gain_changed)
     action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
-    wait_bar = ui.WaitBar(ui.Globals.root, ui.Globals.progressQueue)
-    wait_bar.poll()
+    wait_bar = ui.WaitBar(ui.Globals.root, ctrlr)
     ui.Globals.root.mainloop()
 
 

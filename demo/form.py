@@ -39,18 +39,20 @@ class Controller(ui.FormController):
 
     def run_task(self):
         """
-        - override this in app
         - run in background thread to avoid blocking UI
         """
-        self.start_progress()
+        # self.start_progress()
         for p in range(101):
             # Simulate a task
             time.sleep(0.01)
-            self.set_progress('/processing', p, 'Processing ...')
+            # print(f'Processing ... {p+1}%')
+            self.send_progress('/processing', p, 'Processing ...')
             if self.is_scheduled_to_stop():
+                print('Stopped.')
                 self.stop_progress()
                 return
-        self.stop_progress()
+
+    def on_task_done(self):
         out = vars(self.get_latest_model())
         self.model['export'] = osp.join(util.get_platform_tmp_dir(), 'form.out.json')
         util.save_json(self.model['export'], out)
@@ -85,8 +87,7 @@ def main():
                                                                          'ep23', 'ep24', 'ep25', 'ep26'], 'List of episodes in which this character appears', True)
     export_wgt = ui.ReadOnlyPathEntry(pg3, 'export', 'Export to File', '', 'Path to exported file')
     action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
-    progress_bar = ui.ProgressBar(ui.Globals.root, ui.Globals.progressQueue)
-    progress_bar.poll()
+    progress_bar = ui.ProgressBar(ui.Globals.root, ctrlr)
     ui.Globals.root.mainloop()
 
 
