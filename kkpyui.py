@@ -897,14 +897,14 @@ class WaitBar(ttk.Frame):
     - TODO: use IPC for cross-language open-source tasks
     """
 
-    def __init__(self, master, producer, *args, **kwargs):
+    def __init__(self, master, producer, prog_evt=None, abort_evt=None, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         self.desc = tk.StringVar(name='description', value='')
         self.bar = ttk.Progressbar(self, orient="horizontal", mode="indeterminate")
         self.label = ttk.Label(self.bar, textvariable=self.desc, text='...', foreground='white', background='black')
         self.topic = None
-        self.progEvent = Globals.progEvent
-        self.abortEvent = Globals.abortEvent  # read-only here, set by app
+        self.progEvent = prog_evt or Globals.progEvent
+        self.abortEvent = abort_evt or Globals.abortEvent  # read-only here, set by app
         self.bind(producer)
         self.layout()
 
