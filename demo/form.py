@@ -42,21 +42,13 @@ class Controller(ui.FormController):
         - run in background thread to avoid blocking UI
         - do not run anything bound to tkinter widgets (main thread) here
         """
-        # self.start_progress()
         for p in range(101):
             if self.is_scheduled_to_stop():
-                print('Stopped.')
                 self.stop_progress()
                 return
-            self.send_progress('/processing', p, f'Processing ... {p}%')
             # Simulate a task
-            time.sleep(1)
-
-    def await_task(self, wait_ms=100):
-        self.progUI.poll(wait_ms)
-        if self.toBlockWhileAwait:
-            self.taskThread.join()
-            self.on_task_done()
+            time.sleep(0.01)
+            self.send_progress('/processing', p, f'Processing ... {p}%')
 
     def on_task_done(self):
         out = vars(self.get_latest_model())

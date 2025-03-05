@@ -964,9 +964,7 @@ class WaitBar(ttk.Frame):
             self.bar.stop()
             self.abortEvent.set()
         self.desc.set(description)
-        self.bar.update_idletasks()
         self.update_idletasks()
-        self.master.update_idletasks()
         self.progEvent.clear()
 
     def poll(self, wait_ms=100):
@@ -976,13 +974,9 @@ class WaitBar(ttk.Frame):
         """
         if self.bar.cget('mode') == 'indeterminate':
             return
-        print(f'polling ... 1: to stop: {self._scheduled_to_stop()}, set: {self.progEvent.is_set()}')
         if not self._scheduled_to_stop() and self.progEvent.is_set():
-            print('polling ... 2')
             self.receive_progress(self.progEvent.topic, self.progEvent.progress, self.progEvent.description)
-            print(f'polling ... 3: {self.prog.get()}%')
         if self._scheduled_to_stop():
-            # print('polling ... 4')
             self.stop()
             return
         self.master.after(wait_ms, self.poll)
@@ -1001,27 +995,13 @@ class ProgressBar(WaitBar):
         self.master.update_idletasks()
 
     def receive_progress(self, topic: str, progress: int, description: str = '...'):
-        print(f'receiving progress ... {topic=}, {progress=}, {description=}')
+        # print(f'receiving progress ... {topic=}, {progress=}, {description=}')
         self.prog.set(progress)
         self.desc.set(description)
-        self.bar.update_idletasks()
         self.update_idletasks()
-        self.master.update_idletasks()
         self.progEvent.clear()
         if progress >= 100:
             self.abortEvent.set()
-
-    def poll(self, wait_ms=100):
-        """
-        - for modal progressbar only
-        - do not use this for non-blocking scenarios such as music player's control panel
-        """
-        if not self._scheduled_to_stop() and self.progEvent.is_set():
-            self.receive_progress(self.progEvent.topic, self.progEvent.progress, self.progEvent.description)
-        if self._scheduled_to_stop():
-            self.stop()
-            return
-        self.master.after(wait_ms, self.poll)
 
 
 class NumberEntry(Entry):
