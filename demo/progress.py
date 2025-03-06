@@ -12,7 +12,7 @@ sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/..'))
 from kkpyui import ProgressPrompt, ProgressEvent, ErrorEvent
 
 
-def background_task(progress_prompt):
+def run_task(progress_prompt):
     """
     Simulated background task that updates the progress.
     """
@@ -24,7 +24,7 @@ def background_task(progress_prompt):
     progress_prompt.term()  # Close the progress prompt when done
 
 
-def start_task():
+def start_background_task():
     """
     Starts the background task in a separate thread.
     """
@@ -35,7 +35,7 @@ def start_task():
     progress_prompt = ProgressPrompt(root, determinate=True, prog_evt=progress_event, abort_evt=abort_event, error_evt=error_event)
     progress_prompt.init("Running Background Task")
 
-    thread = threading.Thread(target=background_task, args=(progress_prompt,))
+    thread = threading.Thread(target=run_task, args=(progress_prompt,))
     thread.start()
     progress_prompt.poll()
 
@@ -45,7 +45,7 @@ root = tk.Tk()
 root.title("ProgressPrompt Demo: Determinate")
 root.geometry("300x200")
 
-start_button = tk.Button(root, text="Start", command=start_task)
+start_button = tk.Button(root, text="Start Determinate Task", command=start_background_task)
 start_button.pack(pady=50)
 
 root.mainloop()
