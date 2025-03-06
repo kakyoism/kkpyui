@@ -28,10 +28,24 @@ class ProgressEvent(threading.Event):
         self.set()
 
 
+class ErrorEvent(threading.Event):
+    def __init__(self):
+        super().__init__()
+        self.error = None
+
+    def __repr__(self):
+        return f'Error: {self.error}'
+
+    def set_error(self, error: Exception):
+        self.error = error
+        self.set()
+
+
 class Globals:
     root = None
     progEvent = ProgressEvent()
     abortEvent = threading.Event()
+    errorEvent = ErrorEvent()
     style = None
 
 
@@ -972,8 +986,7 @@ class WaitBar(ttk.Frame):
         - for modal progressbar only
         - do not use this for non-blocking scenarios such as music player's control panel
         """
-        if self.bar.cget('mode') == 'indeterminate':
-            return
+
         if not self._scheduled_to_stop() and self.progEvent.is_set():
             self.receive_progress(self.progEvent.topic, self.progEvent.progress, self.progEvent.description)
         if self._scheduled_to_stop():
@@ -1002,6 +1015,153 @@ class ProgressBar(WaitBar):
         self.progEvent.clear()
         if progress >= 100:
             self.abortEvent.set()
+
+
+class ProgressPrompt:
+    def __init__(self, master, determinate=True, prog_evt=None, abort_evt=None, error_evt=None):
+        """
+        - popup progress dialog.
+        - support determinate and indeterminate progress
+        - using threading events to synchronize progress between ui and task threads
+        """
+        # data
+        self.master = master
+        self.isDeterminate = determinate
+        self.topicVar = tk.StringVar(name='progress', value='Progress')
+        self.progVar = tk.IntVar(name='progress', value=0)
+        self.descVar = tk.StringVar(name='description', value='')
+        self.progEvent = prog_evt or Globals.progEvent
+        self.abortEvent = abort_evt or Globals.abortEvent
+        self.errorEvent = error_evt or Globals.abortEvent
+        # ui
+        self.window = None
+        self.labelFrame = None
+        self.descLabel = None
+        self.progLabel = None
+        self.progBar = None
+
+    def _create_window(self, title):
+        """Dynamically creates the progress bar window."""
+        def _center_over_parent():
+            """
+            - place the modal dialog in the center of the parent window
+            """
+            parent = self.window.master
+            parent.update_idletasks()
+            parent_x, parent_y = parent.winfo_rootx(), parent.winfo_rooty()
+            parent_width, parent_height = parent.winfo_width(), parent.winfo_height()
+            dialog_width, dialog_height = self.window.winfo_reqwidth(), self.window.winfo_reqheight()
+            x, y = parent_x + (parent_width // 2) - (dialog_width // 2), parent_y + (parent_height // 2) - (dialog_height // 2)
+            self.window.geometry(f"+{x-100}+{y-100}")
+        self.window = tk.Toplevel(self.master)
+        self.window.title(title)
+        self.window.geometry("400x120")
+        self.window.resizable(False, False)
+        self.window.transient(self.master)
+        self.window.grab_set()  # Make modal
+        # Label frame for information and progress text
+        self.labelFrame = ttk.Frame(self.window)
+        self.labelFrame.pack(side='top', fill="x", padx=10, pady=5, expand=True)
+        self.labelFrame.columnconfigure(0, weight=1)
+        self.labelFrame.columnconfigure(1, weight=1)
+        # Left label for general info
+        self.descLabel = ttk.Label(self.labelFrame, textvariable=self.descVar, text="Running task ...", anchor="w")
+        self.descLabel.pack(side='left', fill="x", padx=5, expand=True)
+        # Right label for progress text
+        perc_label = ttk.Label(self.labelFrame, text="%", anchor="e")
+        perc_label.pack(side='right')
+        self.progLabel = ttk.Label(self.labelFrame, textvariable=self.progVar, text="0", anchor="e")
+        self.progLabel.pack(side='right', fill="x", padx=1)
+        # Progress bar
+        self.progBar = ttk.Progressbar(self.window, variable=self.progVar, mode="determinate" if self.isDeterminate else "indeterminate")
+        self.progBar.pack(side='bottom', fill="x", padx=10, pady=5, expand=True)
+        _center_over_parent()
+        self.window.update_idletasks()
+        self.window.protocol(x_button_event := "WM_DELETE_WINDOW", self.term)
+
+    def init(self, task="Progress"):
+        """
+        - shows the modal progress prompt
+        """
+        self._clear_events()
+        if not self.window:
+            self._create_window(task)
+        self.progVar.set(0)
+        self.descVar.set(task)
+
+    def term(self):
+        """
+        - clean up and closes the progress prompt
+        """
+        self.progVar.set(100);
+        self.descVar.set("Stopping ...")
+        self._clear_events()
+        self.close()
+
+    def _clear_events(self):
+        self.progEvent.clear()
+        self.errorEvent.clear()
+        self.abortEvent.clear()
+
+    def _scheduled_to_stop(self):
+        return self.abortEvent.is_set() or not self.window
+
+    def poll(self, wait_ms=100):
+        if self.errorEvent.is_set():
+            self.errorEvent.clear()
+            Diagnostics(self.master, self.errorEvent.error, util.glogger)
+            self.term()
+            return
+        if not self._scheduled_to_stop() and self.progEvent.is_set():
+            self.receive_progress(self.progEvent.topic, self.progEvent.progress, self.progEvent.description)
+            self.window.update_idletasks()
+            self.progEvent.clear()
+        if self._scheduled_to_stop():
+            return
+        self.window.after(wait_ms, self.poll)
+
+    def send_progress(self, topic: str, progress: int, description: str = None):
+        """
+        - call this in task thread to send progress to ui thread
+        """
+        # print(f'Processing ... {progress}%')
+        self.progEvent.set_progress(topic, progress, description)
+        # print('Progress sent.')
+
+    def receive_progress(self, topic: str, progress: int, description: str = '...'):
+        """
+        - poll this in ui thread to receive progress from task thread
+        - client does not know the difference between determinate and indeterminate
+        - client only knows the progress is 0-100, when the progress is unkonwn, simply send 0 to start, and 100 to stop
+        """
+        self.topicVar.set(topic)
+        if not self.isDeterminate:
+            if progress == 0:
+                self.progBar.start()
+            elif progress >= 100:
+                self.progBar.stop()
+                self.abortEvent.set()
+        else:
+            self.progVar.set(progress)
+            if progress >= 100:
+                self.abortEvent.set()
+        self.descVar.set(description)
+        self.window.update_idletasks()
+        self.progEvent.clear()
+
+    def describe(self, message):
+        """
+        - mainly for indeterminate progress
+        """
+        self.descVar.set(message)
+
+    def close(self):
+        """
+        - close window only
+        - the prompt can be reused by calling init()
+        """
+        self.window.destroy()
+        self.window = None
 
 
 class NumberEntry(Entry):
