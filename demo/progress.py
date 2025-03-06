@@ -42,7 +42,7 @@ def start_task():
 
 # Create main application window
 root = tk.Tk()
-root.title("ProgressPrompt Demo")
+root.title("ProgressPrompt Demo: Determinate")
 root.geometry("300x200")
 
 start_button = tk.Button(root, text="Start", command=start_task)

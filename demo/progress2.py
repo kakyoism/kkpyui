@@ -25,7 +25,7 @@ def start_task_indeterminate():
     progress_prompt.poll()
 
 root = tk.Tk()
-root.title("ProgressPrompt Demo")
+root.title("ProgressPrompt Demo: Indeterminate")
 root.geometry("300x200")
 
 start_button_indeterminate = ttk.Button(root, text="Start Indeterminate Task", command=start_task_indeterminate)
