@@ -1067,11 +1067,12 @@ class ProgressPrompt:
         # Left label for general info
         self.descLabel = ttk.Label(self.labelFrame, textvariable=self.descVar, text="Running task ...", anchor="w")
         self.descLabel.pack(side='left', fill="x", padx=5, expand=True)
-        # Right label for progress text
-        perc_label = ttk.Label(self.labelFrame, text="%", anchor="e")
-        perc_label.pack(side='right')
-        self.progLabel = ttk.Label(self.labelFrame, textvariable=self.progVar, text="0", anchor="e")
-        self.progLabel.pack(side='right', fill="x", padx=1)
+        # Right label for showing determinate progress
+        if self.isDeterminate:
+            perc_label = ttk.Label(self.labelFrame, text="%", anchor="e")
+            perc_label.pack(side='right')
+            self.progLabel = ttk.Label(self.labelFrame, textvariable=self.progVar, text="0", anchor="e")
+            self.progLabel.pack(side='right', fill="x", padx=1)
         # Progress bar
         self.progBar = ttk.Progressbar(self.window, variable=self.progVar, mode="determinate" if self.isDeterminate else "indeterminate")
         self.progBar.pack(side='bottom', fill="x", padx=10, pady=5, expand=True)
@@ -1134,20 +1135,26 @@ class ProgressPrompt:
         - client does not know the difference between determinate and indeterminate
         - client only knows the progress is 0-100, when the progress is unkonwn, simply send 0 to start, and 100 to stop
         """
+        print('receiving progress ...')
         self.topicVar.set(topic)
         if not self.isDeterminate:
+            print('indeterminate progress')
             if progress == 0:
                 self.progBar.start()
+                print('starting ...')
             elif progress >= 100:
                 self.progBar.stop()
                 self.abortEvent.set()
+                print('stopping ...')
         else:
             self.progVar.set(progress)
             if progress >= 100:
                 self.abortEvent.set()
         self.descVar.set(description)
+        print(f'{description=}')
         self.window.update_idletasks()
         self.progEvent.clear()
+        print('received ...')
 
     def describe(self, message):
         """
