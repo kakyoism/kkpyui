@@ -35,6 +35,7 @@ def start_background_task():
 
 # Create main application window
 root = tk.Tk()
+ui.init_style()
 root.title("ProgressPrompt Demo: Determinate")
 root.geometry("300x200")
 

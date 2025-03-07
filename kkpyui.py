@@ -166,6 +166,7 @@ def init_style():
               background=[("active", "#4D4D4D")],  # Darker shade for hover
               foreground=[("active", "#FFF")],  # Optional: change text color on hover
               arrowcolor=[("active", "#FFF")])  # Change arrow color on hover
+    Globals.style.configure('TLabel', background='#303841', foreground='white')
 
 
 def safe_get_number(tknumvar: tk.Variable):
@@ -1050,7 +1051,6 @@ class ProgressPrompt:
         self.helper = help.helper if help else {}
         # ui
         self.window = None
-        self.labelFrame = None
         self.descLabel = None
         self.progLabel = None
         self.progBar = None
@@ -1074,19 +1074,23 @@ class ProgressPrompt:
         self.window.resizable(False, False)
         self.window.transient(self.master)
         self.window.grab_set()  # Make modal
+        # Toplevel is not themable, we need to simulate when ttk.style is used
+        # some apps may not use ttk.style, so we must bypass in those cases
+        if Globals.style:
+            self.window.configure(bg='#303841', borderwidth=5)
         # Label frame for information and progress text
-        self.labelFrame = ttk.Frame(self.window)
-        self.labelFrame.pack(side='top', fill="x", padx=10, pady=5, expand=True)
-        self.labelFrame.columnconfigure(0, weight=1)
-        self.labelFrame.columnconfigure(1, weight=1)
+        label_frm = ttk.Frame(self.window, style='TFrame')
+        label_frm.pack(side='top', fill="x", padx=10, pady=5, expand=True)
+        label_frm.columnconfigure(0, weight=1)
+        label_frm.columnconfigure(1, weight=1)
         # Left label for general info
-        self.descLabel = ttk.Label(self.labelFrame, textvariable=self.descVar, text="Running task ...", anchor="w")
+        self.descLabel = ttk.Label(label_frm, textvariable=self.descVar, text="Running task ...", anchor="w", style='TLabel')
         self.descLabel.pack(side='left', fill="x", padx=5, expand=True)
         # Right label for showing determinate progress
         if self.isDeterminate:
-            perc_label = ttk.Label(self.labelFrame, text="%", anchor="e")
+            perc_label = ttk.Label(label_frm, text="%", anchor="e", style='TLabel')
             perc_label.pack(side='right')
-            self.progLabel = ttk.Label(self.labelFrame, textvariable=self.progVar, text="0", anchor="e")
+            self.progLabel = ttk.Label(label_frm, textvariable=self.progVar, text="0", anchor="e", style='TLabel')
             self.progLabel.pack(side='right', fill="x", padx=1)
         # Progress bar
         self.progBar = ttk.Progressbar(self.window, variable=self.progVar, mode="determinate" if self.isDeterminate else "indeterminate")
