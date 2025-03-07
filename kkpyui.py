@@ -169,6 +169,11 @@ def init_style():
     Globals.style.configure('TLabel', background='#303841', foreground='white')
 
 
+def lazy_style_tk_window(window):
+    if Globals.style:
+        window.configure(bg='#303841', borderwidth=5)
+
+
 def safe_get_number(tknumvar: tk.Variable):
     """
     - swallow crash and give caller clues to handle with
@@ -1076,8 +1081,7 @@ class ProgressPrompt:
         self.window.grab_set()  # Make modal
         # Toplevel is not themable, we need to simulate when ttk.style is used
         # some apps may not use ttk.style, so we must bypass in those cases
-        if Globals.style:
-            self.window.configure(bg='#303841', borderwidth=5)
+        lazy_style_tk_window(self.window)
         # Label frame for information and progress text
         label_frm = ttk.Frame(self.window, style='TFrame')
         label_frm.pack(side='top', fill="x", padx=10, pady=5, expand=True)
@@ -1204,6 +1208,7 @@ class ErrorPrompt(tk.Toplevel):
         # Make the window modal
         self.transient(parent)
         self.grab_set()
+        lazy_style_tk_window(self)
         frame = ttk.Frame(self)
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.traceText = tk.Text(frame, wrap=tk.WORD, state=tk.NORMAL, height=20)
@@ -1280,6 +1285,7 @@ class ErrorPrompt(tk.Toplevel):
         self.errHelpMap = help_map
 
 
+# region entries
 class NumberEntry(Entry):
     def __init__(self, master: Page, key, text, default, doc, presetable=True, minmax=(float('-inf'), float('inf')), datatype=tk.IntVar, step=1, **kwargs):
         super().__init__(master, key, text, ttk.Frame, default, doc, presetable, **kwargs)
@@ -1895,3 +1901,4 @@ class CurveEntry(Entry):
 
     def main(self):
         pass
+# endregion
