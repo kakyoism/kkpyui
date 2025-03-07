@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 import tkinter as tk
+import traceback
 import types
 import typing
 from tkinter import ttk, filedialog, scrolledtext as tktext, simpledialog as tkdialog
@@ -32,12 +33,17 @@ class ErrorEvent(threading.Event):
     def __init__(self):
         super().__init__()
         self.error = None
+        self.callstack = None
 
     def __repr__(self):
         return f'Error: {self.error}'
 
-    def set_error(self, error: Exception):
+    def set_error(self, error: Exception, callstack: str):
+        """
+        - callstack: traceback.format_exc()
+        """
         self.error = error
+        self.error.callstack = callstack
         self.set()
 
 
@@ -779,7 +785,6 @@ class FormController:
         # otherwise ui thread still blocks
         self.taskThread = threading.Thread(target=self.run_task, daemon=True)
         self.taskThread.start()
-        print('awaiting ...')
         self.await_task(33)
 
     def run_task(self):
@@ -944,7 +949,6 @@ class WaitBar(ttk.Frame):
         """
         - called by app's task thread
         """
-        # self.send_progress(topic, 0, description)
         self.topic = topic
         if description:
             self.desc = description
@@ -963,9 +967,7 @@ class WaitBar(ttk.Frame):
         """
         - call this in app's controller.run_task() (task thread) to send progress to ui thread
         """
-        # print(f'Processing ... {progress}%')
         self.progEvent.set_progress(topic, progress, description)
-        # print('Progress sent.')
 
     def receive_progress(self, topic: str, progress: int, description: str = '...'):
         """
@@ -1018,21 +1020,34 @@ class ProgressBar(WaitBar):
 
 
 class ProgressPrompt:
-    def __init__(self, master, determinate=True, prog_evt=None, abort_evt=None, error_evt=None):
-        """
-        - popup progress dialog.
-        - support determinate and indeterminate progress
-        - using threading events to synchronize progress between ui and task threads
-        """
+    """
+    - popup progress dialog.
+    - support determinate and indeterminate progress
+    - using threading events to synchronize progress between ui and task threads
+    - sync must have attributes:
+      - progEvent (ui.ProgressEvent)
+      - abortEvent (threading.Event)
+      - errorEvent (ui.ErrorEvent)
+    - help must have attributes:
+      - reporter (callable)
+      - cookie (any object), optional argument for reporter function
+      - helper (dict: {exception: url})
+    """
+    def __init__(self, master, determinate=True, sync=None, help=None):
         # data
         self.master = master
         self.isDeterminate = determinate
         self.topicVar = tk.StringVar(name='progress', value='Progress')
         self.progVar = tk.IntVar(name='progress', value=0)
         self.descVar = tk.StringVar(name='description', value='')
-        self.progEvent = prog_evt or Globals.progEvent
-        self.abortEvent = abort_evt or Globals.abortEvent
-        self.errorEvent = error_evt or Globals.abortEvent
+        if not sync:
+            sync = Globals
+        self.progEvent = sync.progEvent
+        self.abortEvent = sync.abortEvent
+        self.errorEvent = sync.errorEvent
+        self.reporter = help.reporter if help else None
+        self.cookie = help.cookie if help else None
+        self.helper = help.helper if help else {}
         # ui
         self.window = None
         self.labelFrame = None
@@ -1110,7 +1125,9 @@ class ProgressPrompt:
     def poll(self, wait_ms=100):
         if self.errorEvent.is_set():
             self.errorEvent.clear()
-            Diagnostics(self.master, self.errorEvent.error, util.glogger)
+            error_prompt = ErrorPrompt(self.master, self.errorEvent.error, util.glogger)  # Replace `print` with your logger
+            error_prompt.bind_reporter(self.reporter, self.cookie)
+            error_prompt.bind_helper(self.helper)
             self.term()
             return
         if not self._scheduled_to_stop() and self.progEvent.is_set():
@@ -1125,9 +1142,7 @@ class ProgressPrompt:
         """
         - call this in task thread to send progress to ui thread
         """
-        # print(f'Processing ... {progress}%')
         self.progEvent.set_progress(topic, progress, description)
-        # print('Progress sent.')
 
     def receive_progress(self, topic: str, progress: int, description: str = '...'):
         """
@@ -1135,26 +1150,20 @@ class ProgressPrompt:
         - client does not know the difference between determinate and indeterminate
         - client only knows the progress is 0-100, when the progress is unkonwn, simply send 0 to start, and 100 to stop
         """
-        print('receiving progress ...')
         self.topicVar.set(topic)
         if not self.isDeterminate:
-            print('indeterminate progress')
-            if progress == 0:
+            if progress == 0:  # starting
                 self.progBar.start()
-                print('starting ...')
-            elif progress >= 100:
+            elif progress >= 100:  # stopping
                 self.progBar.stop()
                 self.abortEvent.set()
-                print('stopping ...')
         else:
             self.progVar.set(progress)
             if progress >= 100:
                 self.abortEvent.set()
         self.descVar.set(description)
-        print(f'{description=}')
         self.window.update_idletasks()
         self.progEvent.clear()
-        print('received ...')
 
     def describe(self, message):
         """
@@ -1167,8 +1176,104 @@ class ProgressPrompt:
         - close window only
         - the prompt can be reused by calling init()
         """
-        self.window.destroy()
-        self.window = None
+        if self.window:
+            self.window.destroy()
+            self.window = None
+
+
+class ErrorPrompt(tk.Toplevel):
+    """
+    - catch exceptions and give guidance, including user-defined and uncaught
+    - show error messages with friendly pacing
+    - provide a bug-report interface for app to plug in issue trackers
+    - avoid user dismissing the error window prematurely
+    """
+    def __init__(self, parent, exception, logger):
+        super().__init__(parent)
+        self.exception = exception
+        self.logger = logger
+        self.reporter = None
+        self.errHelpMap = None
+        # ui
+        self.title("Error")
+        self.geometry("600x400")
+        # Make the window modal
+        self.transient(parent)
+        self.grab_set()
+        frame = ttk.Frame(self)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.traceText = tk.Text(frame, wrap=tk.WORD, state=tk.NORMAL, height=20)
+        self.traceText.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.traceText.yview)
+        self.traceText.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # Insert traceback into text widget
+        user_tips = f"""DIAGNOSTICS:
+
+{self.exception.args[0] if self.exception.args else 'An error occurred.'}
+
+====================
+
+{self.exception.callstack}"""
+        self.traceText.insert(tk.END, user_tips)
+        self.traceText.configure(state=tk.DISABLED)  # Make text widget read-only
+        self.logger.error(user_tips)
+        # actions
+        button_frame = ttk.Frame(self)
+        button_frame.pack(fill=tk.X, pady=(0, 10))
+        report_btn = ttk.Button(button_frame, text="Report", command=self.on_btn_report)
+        report_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        copy_btn = ttk.Button(button_frame, text="Copy", command=lambda: self.on_btn_copy(user_tips))
+        copy_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        help_btn = ttk.Button(button_frame, text="Help?", command=self.on_btn_help)
+        help_btn.pack(side=tk.RIGHT, padx=5, pady=5)
+        # events
+        # give hotkey instead of close button
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def on_btn_report(self):
+        """
+        - subclass this to report the error to the developer
+        - possible imps: send email, open a bug report page, etc.
+        """
+        if not self.reporter:
+            Prompt(self.master, self.logger).warning('No report function is bound. skipped.')
+            return
+        self.reporter.func(self.exception, self.reporter.cookie)
+
+    def on_btn_copy(self, text):
+        """Copy the text content to the clipboard."""
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.update()
+        except Exception as e:
+            Prompt(self.master, self.logger).error(type(e), f'Failed to copy to clipboard: {e}.', 'Press Report to send log to dev.', confirm=True)
+
+    def on_btn_help(self):
+        """Open the help page on given topic (exception type)."""
+        url = self.errHelpMap.get(err := type(self.exception).__name__)
+        if not url:
+            Prompt(self.master, self.logger).info(f"Undefined error; Press Report button to notify dev team.")
+            return
+        # file path or web url?
+        is_local_file = osp.isfile(url)
+        assert url.startswith('http') or url.startswith('www') or is_local_file
+        util.open_in_browser(url, islocal=is_local_file)
+
+    def bind_reporter(self, func, cookie=None):
+        """
+        - report function accepts exception object and user messages (cookie)
+        - cookie can contain extended diagnostics such as a session folder, dump files, etc.
+        """
+        self.reporter = types.SimpleNamespace(func=func, cookie=cookie)
+
+    def bind_helper(self, help_map):
+        """
+        - help map is a dict of exception type and help url
+        - url can be a local file or a web page
+        """
+        self.errHelpMap = help_map
 
 
 class NumberEntry(Entry):
@@ -1576,7 +1681,7 @@ class FolderEntry(TextEntry):
         data = value[0] if isinstance(value, list) and len(value) == 1 else value
         self.data.set('\n'.join(data)) if isinstance(data, list) else self.data.set(value)
         self._on_data_changed()
-        print(f'set_data: {self.text=}, {value=}\n')
+        # print(f'set_data: {self.text=}, {value=}\n')
 
     def on_primary_action(self):
         selected = filedialog.askdirectory(
