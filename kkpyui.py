@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 import tkinter as tk
+import tkinter.dnd as dnd
 import traceback
 import types
 import typing
@@ -63,6 +64,7 @@ def init_style():
     # frames
     Globals.style.configure('TFrame', background='#303841', foreground='white', borderwidth=5)
     # form
+    Globals.style.configure("Bold.TLabelframe.Label", font=("TkDefaultFont", 12, "bold"))
     Globals.style.configure('Page.TLabelframe', background="#303841", foreground="#DDD", relief="flat", borderwidth=2, font=node_font)
     Globals.style.configure('Page.TLabelframe.Label', background="#303841", foreground="#DDD")
     # action bar
@@ -1901,4 +1903,311 @@ class CurveEntry(Entry):
 
     def main(self):
         pass
+# endregion
+
+
+# region panels
+class TreePane(ttk.LabelFrame):
+    """
+    - flexible tree panel used for displaying and editing hierarchical data
+    - offering searchbar to narrow down the tree
+    - app is responsible for lay it out in the main window
+    - app must subclass all the event handlers
+    """
+    def __init__(self, master, title, controller, logger=None):
+        super().__init__(master)
+        self.configure(text='title', style="Bold.TLabelframe")
+        self.controller = controller
+        self.controller.bind_view(self)
+        self.logger = logger or util.glogger
+        # tree
+        self.filterEntry = ttk.Entry(self)
+        # add vertical scrollbar to treeview
+        tree_frm = ttk.Frame(self)
+        scrollbar = ttk.Scrollbar(tree_frm, orient="vertical")
+        self.tree = DragNDropTreeview(tree_frm, master, selectmode='extended', show="tree", yscrollcommand=scrollbar.set)
+        # CAUTION: must pack here or scrollbar won't show up
+        scrollbar.configure(command=self.tree.yview)
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="both")
+        # Actions
+        self.menuBar = ttk.Frame(self)
+        menu_btn = ttk.Menubutton(self.menuBar, text="Actions", direction="above")
+        self.menuBar = tk.Menu(menu_btn, tearoff=0)
+        # dynamically add menu to the menu button based on controller offers
+        for label, cmd in self.controller.labelCmdMap.items():
+            self.menuBar.add_command(label=label, command=cmd)
+        menu_btn["menu"] = self.menuBar
+        help_btn = ttk.Button(self.actionBar, text="Help", command=self.controller.on_help)
+        # Layout
+        self.master.add(self)
+        self.filterEntry.pack(side="top", fill="x")
+        tree_frm.pack(side="top", fill="both", expand=True)
+        self.menuBar.pack(side="bottom", fill="both", pady=5)
+        menu_btn.pack(side="left", padx=5)
+        help_btn.pack(side="right", padx=5)
+        # event bindings
+        self.filterEntry.bind("<KeyRelease>", self.controller.on_filter_update)
+        self.tree.bind("<Button-1>", self.controller.on_mouse_ldown)
+        # CAUTION: <B1-Motion> (drag) is reserved for tkinter.dnd, so skip it
+        # model needs to update focus on key navigation
+        self.tree.bind("<Up>", self.controller.on_arrowkey_updown)
+        self.tree.bind("<Down>", self.controller.on_arrowkey_updown)
+
+    def configure_tree_colorcode(self, tag_color_map):
+        for tag, color in tag_color_map.items():
+            self.tree.tag_configure(tag, foreground=color)
+
+    def append(self, key, text, tags=()):
+        self.tree.insert('', 'end', iid=key, text=text, tags=tags)
+
+    def insert(self, key, at_parent, text, tags=()):
+        self.tree.insert(at_parent, 'end', iid=key, text=text, tags=tags)
+
+    def remove(self, keys):
+        for key in keys:
+            self.tree.delete(key)
+
+    def clear(self):
+        self.tree.delete(*self.tree.get_children())
+
+    def redraw(self, key, tags=()):
+        self.tree.item(key, tags=tags)
+
+    def focus_on(self, keys: typing.Union[str, list, tuple]):
+        """
+        - called after model has updated focus
+        - ttk.tree.focus() can only work on one item
+        - keys can be one key or a list of keys
+        """
+        self.tree.selection_remove(self.tree.selection())
+        if not keys:
+            return
+        self.tree.selection_set(keys)
+        self.tree.focus(keys if isinstance(keys, str) else keys[0])
+
+    def get_focus_from_mouseclick(self, event):
+        """
+        - caller must validate a potentially empty selection when clicked on blank area
+        """
+        return self.tree.identify_row(event.y)
+
+    def get_selection(self):
+        return self.tree.selection()
+
+    def set_selection(self, keys):
+        return self.tree.selection_set(keys if isinstance(keys, str) else keys[0])
+
+    def start_drag(self, event):
+        dnd.dnd_start(self.tree, event=event)
+
+    def defer(dur_ms=10, func=None):
+        """
+        - ops like selection takes a short time window to finish
+        - defensive wait for UI to finish its job
+        """
+        self.tree.after(dur_ms, func)
+
+
+class DragNDropTreeview(ttk.Treeview):
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(parent, **kwargs)
+
+    @staticmethod
+    def dnd_end(target, event):
+        """
+        - Finalizes drag-and-drop
+        """
+        # print("Drag ended.")
+        pass
+
+
+class TreeController:
+    def __init__(self, model, logger=None):
+        self.view = None
+        self.model = model
+        self.logger = logger or util.glogger
+
+    def bind_view(self, view):
+        self.view = view
+
+    def insert_subtree(self, key, at_parent=''):
+        """
+        - add tree from a root node into tree pane by recursion
+        - append to end by default if no parent is given
+        - model item must have keys: name, tags, children
+        """
+        item = self.model.get(key)
+        assert item, f"Item {key} not found in model."
+        self.view.insert(key, at_parent, item['name'], item['tags'])
+        for child in self.model.get_children_of(key):
+            self.insert_subtree(child, at_parent=key)
+
+    def fill(self, data=None):
+        """
+        - populate tree pane with full or filtered data
+        - data is a flat dict: {key: item}; item is a flat dict that has 'children' field to link to item's children; children are flat in the key-item dict
+        - app must subclass this to provide data
+        - input arg can be pre-filtered data
+        """
+        self.view.clear()
+        is_filtered = data is not None
+        if not data:
+            data = self.model.get_all()
+        if not data:
+            return
+        # add filtered nodes as root only, do not add their subtrees
+        if is_filtered:
+            for key, item in data:
+                self.view.insert(key, '', item['name'], item['tags'])
+        else:
+            for key, item in data:
+                self.insert_subtree(key)
+        self.view.focus_on(first_key := list(data.keys())[0])
+
+    # event handlers
+    def on_filter_update(self, event):
+        """
+        - filter tree nodes by user input
+        - update tree pane with filtered data
+        """
+        keyword = self.view.filterEntry.get().strip().lower()
+        if not keyword:
+            self.fill()
+            return
+        filtered = {key: item for key, item in self.model.get_all().items() if keyword in item['name'].lower()}
+        self.fill(filtered)
+
+    def on_mouse_ldown(self, event):
+        """
+        - update model focus on tree node selection
+        """
+        def _do_after_selection_complete():
+            old_focus = self.model.get_focus_keys()
+            clicked_key = self.view.get_focus_from_mouseclick(event)
+            if not clicked_key:
+                # clicked blank area, so deselect all
+                self.model.focus_on([])
+                return
+            # avoid drag-click overwriting original selection
+            # - drag-click auto-selects the clicked item
+            # - must restore the original selection, i.e., a multi-sel
+            if dragging := clicked_key in org_focus:
+                self.view.set_selection(org_focus)
+            selected = self.view.get_selection()
+            if not selected:
+                self.model.focus_on([])
+                return
+            norm_selected = [selected] if isinstance(selected, str) else list(selected)
+            self.model.focus_on(norm_selected)
+            if dragging:
+                self.view.start_drag(event)
+        self.view.defer(dur_ms=10, func=_do_after_selection_complete)
+
+    def on_keydown_updown(self, event):
+        """
+        - update model focus on key navigation
+        """
+
+        def _do_after_selection_complete():
+            selected = self.view.get_selection()
+            if not selected:
+                return
+            self.view.focus_on(selected)
+            norm_selected = [selected] if isinstance(selected, str) else list(selected)
+            self.model.focus_on(norm_selected)
+        self.view.defer(dur_ms=10, func=_do_after_selection_complete)
+
+    def on_keydown_delete(self):
+        """
+        - must be called from top-level window due to tkinter limitation
+        """
+        if not (focus_keys := self.model.get_focus_keys()):
+            return
+        self.model.remove(focus_keys)
+
+
+class TreeModelBase:
+    def __init__(self, logger=None):
+        self.logger = logger or util.glogger
+        self.data = collections.OrderedDict({})
+        self.focusKeys = []
+        self.isDirty = False
+
+    def set_dirty(self, dirty=True):
+        """
+        - let user know the model has been changed and not saved
+        """
+        self.isDirty = dirty
+
+    def is_dirty(self):
+        return self.isDirty
+
+    def get(self, key):
+        """
+        - in reality, data can have arbitrary structure
+        - so it's up to the app to define the path to the key-item pair
+        """
+        raise NotImplementedError('subclass this!')
+
+    def get_all(self):
+        raise NotImplementedError('subclass this!')
+
+    def get_children_of(self, key):
+        raise NotImplementedError('subclass this!')
+
+    def get_focus_keys(self):
+        return self.focusKeys
+
+    def focus_on(self, keys):
+        self.focusKeys = keys
+
+    def remove(self, keys):
+        raise NotImplementedError('subclass this!')
+
+
+class DropPaneBase(ttk.LabelFrame):
+    """
+    - tkinter.dnd-based drop-zone prototype for in-app item drag-n-drop
+    - must derive this class to implement the actual drag-n-drop logic
+    - dnd_start must have been called from another widget
+    """
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(master)
+
+    def dnd_accept(self, source, event):
+        raise NotImplementedError('subclass this!')
+
+    def dnd_enter(self, source, event):
+        """
+        - mouse enters the drop zone while being held down
+        - app can show a visual cue to indicate inside drop zone, e.g.,
+          - self.canvas.configure(cursor='target')
+        """
+        raise NotImplementedError('subclass this!')
+
+    def dnd_leave(self, source, event):
+        """
+        - mouse exits the drop zone while being held down
+        - app can show a visual cue to indicate outside of drop zone, e.g.,
+          - self.canvas.configure(cursor='hand2')
+        """
+        raise NotImplementedError('subclass this!')
+
+    def dnd_motion(self, source, event):
+        """
+        - mouse moves over the drop zone while being held down
+        - app can update data coords if the moving path matters, e.g., scribble apps
+        """
+        raise NotImplementedError('subclass this!')
+
+    def dnd_commit(self, source, event):
+        """
+        - mouse released over the drop zone, i.e., end of drag-n-drop
+        - app should detect a hit with available views, e.g.,
+          - target = self.canvas.winfo_containing(event.x_root, event.y_root)
+          - if target in [self.canvas, self.canvas2]: ...
+        """
+        raise NotImplementedError('subclass this!')
+
 # endregion
