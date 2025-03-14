@@ -1,3 +1,4 @@
+import collections
 import csv
 import json
 import os.path as osp
@@ -147,7 +148,6 @@ def init_style():
                             selectcolor="#555",  # Darker background for the checkbox itself
                             bordercolor="#555",
                             relief="flat")
-
     Globals.style.map("TCheckbutton",
                       background=[('active', '#333'), ('selected', '#303841')],  # Darker background when active, blue when selected
                       foreground=[('disabled', '#888')],  # Greyed out text when disabled
@@ -168,7 +168,14 @@ def init_style():
               background=[("active", "#4D4D4D")],  # Darker shade for hover
               foreground=[("active", "#FFF")],  # Optional: change text color on hover
               arrowcolor=[("active", "#FFF")])  # Change arrow color on hover
+    # label
     Globals.style.configure('TLabel', background='#303841', foreground='white')
+    # notebook
+    Globals.style.configure('TNotebook', borderwidth=0, padding=[0, 15])
+    Globals.style.configure('TNotebook.Tab', padding=[10, 5])
+    # field colorcode
+    Globals.style.configure('Warning.TEntry', foreground="red")
+
 
 
 def lazy_style_tk_window(window):
@@ -381,18 +388,18 @@ class ScrollFrame(ttk.Frame):
         super().__init__(master, *args, **kwargs)
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style='Vertical.TScrollbar')
-        # scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         self.frame = ttk.Frame(self.canvas,)
         frame_id = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
 
         # self.canvas.bind("<Configure>", self._on_canvas_configure)
-        self.frame.bind('<Configure>', _configure_interior)
         self.canvas.bind('<Configure>', _configure_canvas)
+        self.frame.bind('<Configure>', _configure_interior)
 
         scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
+        self.frame.pack(side="left", fill="both", expand=True)
 
         self.frame.bind("<Enter>", self._bound_to_mousewheel)
         self.frame.bind("<Leave>", self._unbound_to_mousewheel)
@@ -526,12 +533,11 @@ class Entry(ttk.Frame):
     - groups form a tree to avoid overloading parameter panes
     - groups also improve SNR by prioritizing frequently-tweaked parameters
     - page is responsible for lay out entries
+    - not all entries can be saved as presets, determined by isPresetable
     """
 
     def __init__(self, master: Page, key, text, widget_constructor, default, doc, presetable=True, **widget_kwargs):
         super().__init__(master,)
-        assert isinstance(self.master, Page)
-        self.master.add([self])
         self.key = key
         self.text = text
         self.default = default
@@ -1906,6 +1912,37 @@ class CurveEntry(Entry):
 # endregion
 
 
+class Settings:
+    """
+    - each field has a key, title, default, doc, tags, and value
+    """
+    def __init__(self, path):
+        self.path = path
+        self.props = {}
+
+    def load(self, path=None):
+        self.path = path or self.path
+        self.props = util.load_json(self.path)
+
+    def save(self, path=None):
+        self.path = path or self.path
+        util.save_json(self.path, self.props)
+
+    def dump(self):
+        """
+        - props are orginally saved as {key: {title, default, doc, tags, value}
+        - the 1st tag of a prop is its ui group name
+        - export to group-prop pairs for ui display
+        """
+        grp_prop_map = {}
+        for key, prop in self.props.items():
+            grp = prop['tags'][0]
+            if grp not in grp_prop_map:
+                grp_prop_map[grp] = {}
+            grp_prop_map[grp][key] = prop
+        return grp_prop_map
+
+
 # region panels
 class TreePane(ttk.LabelFrame):
     """
@@ -1933,14 +1970,13 @@ class TreePane(ttk.LabelFrame):
         # Actions
         self.menuBar = ttk.Frame(self)
         menu_btn = ttk.Menubutton(self.menuBar, text="Actions", direction="above")
-        self.menuBar = tk.Menu(menu_btn, tearoff=0)
+        menu = tk.Menu(menu_btn, tearoff=0)
         # dynamically add menu to the menu button based on controller offers
-        for label, cmd in self.controller.labelCmdMap.items():
-            self.menuBar.add_command(label=label, command=cmd)
-        menu_btn["menu"] = self.menuBar
-        help_btn = ttk.Button(self.actionBar, text="Help", command=self.controller.on_help)
+        for label, cmd in self.controller.get_command_map().items():
+            menu.add_command(label=label, command=cmd)
+        menu_btn["menu"] = menu
+        help_btn = ttk.Button(self.menuBar, text="Help", command=self.controller.on_help)
         # Layout
-        self.master.add(self)
         self.filterEntry.pack(side="top", fill="x")
         tree_frm.pack(side="top", fill="both", expand=True)
         self.menuBar.pack(side="bottom", fill="both", pady=5)
@@ -1951,8 +1987,8 @@ class TreePane(ttk.LabelFrame):
         self.tree.bind("<Button-1>", self.controller.on_mouse_ldown)
         # CAUTION: <B1-Motion> (drag) is reserved for tkinter.dnd, so skip it
         # model needs to update focus on key navigation
-        self.tree.bind("<Up>", self.controller.on_arrowkey_updown)
-        self.tree.bind("<Down>", self.controller.on_arrowkey_updown)
+        self.tree.bind("<Up>", self.controller.on_keydown_updown)
+        self.tree.bind("<Down>", self.controller.on_keydown_updown)
 
     def configure_tree_colorcode(self, tag_color_map):
         for tag, color in tag_color_map.items():
@@ -2001,7 +2037,7 @@ class TreePane(ttk.LabelFrame):
     def start_drag(self, event):
         dnd.dnd_start(self.tree, event=event)
 
-    def defer(dur_ms=10, func=None):
+    def defer(self, dur_ms=10, func=None):
         """
         - ops like selection takes a short time window to finish
         - defensive wait for UI to finish its job
@@ -2022,11 +2058,19 @@ class DragNDropTreeview(ttk.Treeview):
         pass
 
 
-class TreeController:
-    def __init__(self, model, logger=None):
+class TreeControllerBase:
+    def __init__(self, model, settings, logger=None):
         self.view = None
         self.model = model
+        self.settings = settings
         self.logger = logger or util.glogger
+
+    def get_command_map(self):
+        """
+        - views need this to populate menu items
+        - must specify label-cmd pairs, label is the menu item text, cmd is the callback function, usually a controller method
+        """
+        raise NotImplementedError('subclass this!')
 
     def bind_view(self, view):
         self.view = view
@@ -2039,7 +2083,22 @@ class TreeController:
         """
         item = self.model.get(key)
         assert item, f"Item {key} not found in model."
+
+        # Debug: Print the current key and parent
+        self.logger.debug(f'Inserting item: key={key}, at_parent={at_parent}')
+
+        # Check if the item already exists in the tree
+        existing_children = self.view.tree.get_children(at_parent)
+        self.logger.debug(f'Existing children for parent {at_parent}: {existing_children}')
+
+        if key in existing_children:
+            self.logger.debug(f'Item already exists in tree pane: {key}; skipped')
+            return
+
+        # Insert the item into the tree
         self.view.insert(key, at_parent, item['name'], item['tags'])
+
+        # Recursively insert children
         for child in self.model.get_children_of(key):
             self.insert_subtree(child, at_parent=key)
 
@@ -2056,16 +2115,29 @@ class TreeController:
             data = self.model.get_all()
         if not data:
             return
-        # add filtered nodes as root only, do not add their subtrees
-        if is_filtered:
-            for key, item in data:
-                self.view.insert(key, '', item['name'], item['tags'])
-        else:
-            for key, item in data:
-                self.insert_subtree(key)
-        self.view.focus_on(first_key := list(data.keys())[0])
+
+        # Add root-level nodes only
+        root_nodes = {key: item for key, item in data.items() if not self.model.get_parent_of(key)}
+        for key, item in root_nodes.items():
+            self.insert_subtree(key)
+
+        # Focus on the first root node
+        if root_nodes:
+            self.view.focus_on(list(root_nodes.keys())[0])
+
+    def dump_model(self):
+        """
+        - save model into a JSON of group-prop pairs
+        """
+        return self.model.dump()
+
+    def dump_settings(self):
+        return self.settings.dump()
 
     # event handlers
+    def on_help(self):
+        raise NotImplementedError('subclass this!')
+
     def on_filter_update(self, event):
         """
         - filter tree nodes by user input
@@ -2083,7 +2155,7 @@ class TreeController:
         - update model focus on tree node selection
         """
         def _do_after_selection_complete():
-            old_focus = self.model.get_focus_keys()
+            org_focus = self.model.get_focus_keys()
             clicked_key = self.view.get_focus_from_mouseclick(event)
             if not clicked_key:
                 # clicked blank area, so deselect all
@@ -2134,6 +2206,31 @@ class TreeModelBase:
         self.focusKeys = []
         self.isDirty = False
 
+    def load(self, path, force_load=False):
+        """
+        - by default, protect dirty data from being overwritten
+        """
+        if not force_load and self.isDirty:
+            return False
+        self.data = util.load_json(path)
+        return True
+
+    def save(self, path, force_save=True):
+        """
+        - by default, minimize risk of data loss by force-saving
+        - to optimize, maintain the dirty state carefully at app level
+        """
+        if not force_save and not self.isDirty:
+            return False
+        util.save_json(path, self.data)
+        return True
+
+    def dump(self):
+        """
+        - regroup data into a group-prop pairs for property pane
+        """
+        raise NotImplementedError('subclass this!')
+
     def set_dirty(self, dirty=True):
         """
         - let user know the model has been changed and not saved
@@ -2151,6 +2248,9 @@ class TreeModelBase:
         raise NotImplementedError('subclass this!')
 
     def get_all(self):
+        raise NotImplementedError('subclass this!')
+
+    def get_parent_of(self, key):
         raise NotImplementedError('subclass this!')
 
     def get_children_of(self, key):
@@ -2209,5 +2309,80 @@ class DropPaneBase(ttk.LabelFrame):
           - if target in [self.canvas, self.canvas2]: ...
         """
         raise NotImplementedError('subclass this!')
+
+
+class PropertyPane(ttk.LabelFrame):
+    """
+    - two-page notebook: property, settings
+    - property: waterfall layout with a top navigation combobox
+    """
+    def __init__(self, master, controller, logger=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.controller = controller
+        self.logger = logger or util.glogger
+        # layout
+        self.configure(padding=[5, 5])
+        # lazy styling
+        self.notebook = ttk.Notebook(self, style='TNotebook')
+        self.notebook.pack(fill="both", expand=True, padx=0, pady=0)
+        # properties
+        prop_frm = ttk.Frame(self.notebook)
+        self.notebook.add(prop_frm, text="Properties")
+        grp_prop_map = self.controller.dump_model()
+        prop_nav_combobox = ttk.Combobox(prop_frm, values=list(grp_prop_map.keys()))
+        prop_nav_combobox.pack(side="top", expand=False)
+        prop_grp_frm = ScrollFrame(prop_frm)
+        prop_grp_frm.pack(fill="both", expand=True)
+        self.generate_entry_groups(prop_grp_frm, grp_prop_map)
+        # global settings
+        stts_frm = ttk.Frame(self.notebook)
+        self.notebook.add(stts_frm, text="Settings")
+        grp_stts_map = self.controller.dump_settings()
+        stts_nav_combobox = ttk.Combobox(stts_frm, values=list(grp_stts_map.keys()))
+        stts_nav_combobox.pack(side="top", expand=False)
+        stts_grp_frm = ScrollFrame(stts_frm)
+        stts_grp_frm.pack(fill="both", expand=True)
+        self.generate_entry_groups(stts_grp_frm, grp_stts_map)
+
+    def generate_entry_groups(self, master, group_prop_map):
+        """
+        - controller brings in sections from data files
+        - model/settings item has a "group" field to categorize properties
+        """
+        for grp, props in group_prop_map.items():
+            grp_frm = ttk.LabelFrame(master, text=grp)
+            grp_frm.pack(fill="both", expand=True, padx=5, pady=5)
+            for key, prop in props.items():
+                prop_entry = self.generate_entry(grp_frm, key, prop)
+                prop_entry.layout()
+            # add a horizontal spacer
+            ttk.Frame(master, height=5).pack(fill="x", expand=True)
+
+    def generate_entry(self, group_frame, key, prop):
+        """
+        - generate entry based on prop type
+        - prop format: {name: title, type, default, doc, presetable, minmax, step, precision, options, file_patterns, start_dir}
+        """
+        entry = None
+        match prop.get('type'):
+            case 'bool':
+                entry = BoolEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
+            case 'int':
+                entry = IntEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop['step'])
+            case 'float':
+                entry = FloatEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop['step'], prop['precision'])
+            case 'str':
+                entry = TextEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
+            case 'option':
+                entry = OptionEntry(group_frame, key, prop['title'], prop['options'], prop['default'], prop['help'])
+            case s if s.startswith('list'):
+                entry = ListEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
+            case 'file':
+                entry = FileEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop['startDir'])
+            case 'folder':
+                entry = FolderEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['startDir'])
+            case _:
+                raise ValueError(f"Unknown property type: {prop['type']}")
+        return entry
 
 # endregion
