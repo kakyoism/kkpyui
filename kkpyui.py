@@ -373,8 +373,10 @@ class ScrollFrame(ttk.Frame):
             - because the inner frame initially does not fill the canvas
             """
             # Update the scrollbars to match the size of the inner frame.
-            width, height = (self.frame.winfo_reqwidth(),
-                             self.frame.winfo_reqheight())
+            # Set a minimum size to avoid freezing with empty content
+            min_width, min_height = 100, 100  # Adjust as needed
+            width, height = (max(min_width, self.frame.winfo_reqwidth()),
+                             max(min_height, self.frame.winfo_reqheight()))
             self.canvas.configure(scrollregion=(0, 0, width, height), bg='#303841', highlightthickness=0)
             if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
                 # update the canvas's width to fit the inner frame
@@ -384,23 +386,18 @@ class ScrollFrame(ttk.Frame):
             # update the inner frame's width to fill the canvas
             if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
                 self.canvas.itemconfigure(frame_id, width=self.canvas.winfo_width())
-
         super().__init__(master, *args, **kwargs)
+        # CAUTION: the code below is order-sensitive!
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style='Vertical.TScrollbar')
         self.canvas.configure(yscrollcommand=scrollbar.set)
-
         self.frame = ttk.Frame(self.canvas,)
         frame_id = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
-
-        # self.canvas.bind("<Configure>", self._on_canvas_configure)
         self.canvas.bind('<Configure>', _configure_canvas)
         self.frame.bind('<Configure>', _configure_interior)
-
         scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
         self.frame.pack(side="left", fill="both", expand=True)
-
         self.frame.bind("<Enter>", self._bound_to_mousewheel)
         self.frame.bind("<Leave>", self._unbound_to_mousewheel)
 
@@ -2329,20 +2326,22 @@ class PropertyPane(ttk.LabelFrame):
         prop_frm = ttk.Frame(self.notebook)
         self.notebook.add(prop_frm, text="Properties")
         grp_prop_map = self.controller.dump_model()
-        prop_nav_combobox = ttk.Combobox(prop_frm, values=list(grp_prop_map.keys()))
-        prop_nav_combobox.pack(side="top", expand=False)
-        prop_grp_frm = ScrollFrame(prop_frm)
-        prop_grp_frm.pack(fill="both", expand=True)
-        self.generate_entry_groups(prop_grp_frm, grp_prop_map)
+        if grp_prop_map:  # avoid freezing
+            prop_nav_combobox = ttk.Combobox(prop_frm, values=list(grp_prop_map.keys()))
+            prop_nav_combobox.pack(side="top", expand=False)
+            prop_grp_frm = ScrollFrame(prop_frm)
+            prop_grp_frm.pack(side="top", fill="both", expand=True)
+            self.generate_entry_groups(prop_grp_frm, grp_prop_map)
         # global settings
         stts_frm = ttk.Frame(self.notebook)
         self.notebook.add(stts_frm, text="Settings")
         grp_stts_map = self.controller.dump_settings()
-        stts_nav_combobox = ttk.Combobox(stts_frm, values=list(grp_stts_map.keys()))
-        stts_nav_combobox.pack(side="top", expand=False)
-        stts_grp_frm = ScrollFrame(stts_frm)
-        stts_grp_frm.pack(fill="both", expand=True)
-        self.generate_entry_groups(stts_grp_frm, grp_stts_map)
+        if grp_stts_map:  # avoid freezing
+            stts_nav_combobox = ttk.Combobox(stts_frm, values=list(grp_stts_map.keys()))
+            stts_nav_combobox.pack(side="top", expand=False)
+            stts_grp_frm = ScrollFrame(stts_frm)
+            stts_grp_frm.pack(side="top", fill="both", expand=True)
+            self.generate_entry_groups(stts_grp_frm, grp_stts_map)
 
     def generate_entry_groups(self, master, group_prop_map):
         """
