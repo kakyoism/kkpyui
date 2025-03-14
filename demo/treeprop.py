@@ -100,7 +100,7 @@ class DemoApp:
         # Create the main window
         self.root = tk.Tk()
         self.root.title("Demo App")
-        self.root.geometry("1200x800")
+        self.root.geometry("800x600")
         self.tree_model = DemoTreeModel()
         self.settings = ui.Settings(osp.join(osp.dirname(__file__), 'settings.json'))
         self.tree_controller = DemoTreeController(self.tree_model, self.settings)
