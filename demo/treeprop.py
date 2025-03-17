@@ -74,23 +74,6 @@ class DemoTreeController(ui.TreeControllerBase):
     def on_help(self):
         print('help')
 
-    def on_mouse_ldown(self, event):
-        super().on_mouse_ldown(event)
-        selected = self.view.get_selection()
-        if selected:
-            self.update_properties(selected[0])
-
-    def update_properties(self, node_key):
-        """
-        Update the property fields based on the selected node.
-        """
-        node = self.model.get(node_key)
-        # if node:
-        #     self.form.reset_entries()
-        #     self.form.pages['General'].winfo_children()[0].set_data(node['name'])
-        #     self.form.pages['General'].winfo_children()[1].set_data(node['tags'])
-        print(node)
-
 
 class DemoApp:
     """
@@ -103,18 +86,20 @@ class DemoApp:
         self.root.geometry("800x600")
         self.tree_model = DemoTreeModel()
         self.settings = ui.Settings(osp.join(osp.dirname(__file__), 'settings.json'))
-        self.tree_controller = DemoTreeController(self.tree_model, self.settings)
+        self.controller = DemoTreeController(self.tree_model, self.settings)
 
         # Create the TreePane
-        self.tree_pane = ui.TreePane(self.root, "Tree", self.tree_controller)
-        self.tree_pane.pack(side="left", fill="both", expand=True)
+        self.treePane = ui.TreePane(self.root, "Tree", self.controller)
+        self.treePane.pack(side="left", fill="both", expand=True)
+        self.controller.bind_picker(self.treePane)
 
         # Create the PropertyPane
-        self.property_pane = ui.PropertyPane(self.root, self.tree_controller)
-        self.property_pane.pack(side="right", fill="both", expand=True)
+        self.propertyPane = ui.PropertyPane(self.root, self.controller)
+        self.propertyPane.pack(side="right", fill="both", expand=True)
+        self.controller.add_listener('prop', self.propertyPane)
 
         # Initialize the tree with data
-        self.tree_controller.fill()
+        self.controller.fill()
 
         # Bind events
         self.root.mainloop()

@@ -1952,7 +1952,7 @@ class TreePane(ttk.LabelFrame):
         super().__init__(master)
         self.configure(text='title', style="Bold.TLabelframe")
         self.controller = controller
-        self.controller.bind_view(self)
+        self.controller.bind_picker(self)
         self.logger = logger or util.glogger
         # tree
         self.filterEntry = ttk.Entry(self)
@@ -2026,10 +2026,16 @@ class TreePane(ttk.LabelFrame):
         return self.tree.identify_row(event.y)
 
     def get_selection(self):
+        """
+        - selection is always a tuple of keys, even for a single selection
+        """
         return self.tree.selection()
 
     def set_selection(self, keys):
         return self.tree.selection_set(keys if isinstance(keys, str) else keys[0])
+
+    def get_children(self, at_parent):
+        return self.tree.get_children(at_parent)
 
     def start_drag(self, event):
         dnd.dnd_start(self.tree, event=event)
@@ -2057,7 +2063,8 @@ class DragNDropTreeview(ttk.Treeview):
 
 class TreeControllerBase:
     def __init__(self, model, settings, logger=None):
-        self.view = None
+        self.picker = None
+        self.listeners = {}
         self.model = model
         self.settings = settings
         self.logger = logger or util.glogger
@@ -2069,8 +2076,11 @@ class TreeControllerBase:
         """
         raise NotImplementedError('subclass this!')
 
-    def bind_view(self, view):
-        self.view = view
+    def bind_picker(self, view):
+        self.picker = view
+
+    def add_listener(self, key, view):
+        self.listeners[key] = view
 
     def insert_subtree(self, key, at_parent=''):
         """
@@ -2085,7 +2095,7 @@ class TreeControllerBase:
         self.logger.debug(f'Inserting item: key={key}, at_parent={at_parent}')
 
         # Check if the item already exists in the tree
-        existing_children = self.view.tree.get_children(at_parent)
+        existing_children = self.picker.get_children(at_parent)
         self.logger.debug(f'Existing children for parent {at_parent}: {existing_children}')
 
         if key in existing_children:
@@ -2093,7 +2103,7 @@ class TreeControllerBase:
             return
 
         # Insert the item into the tree
-        self.view.insert(key, at_parent, item['name'], item['tags'])
+        self.picker.insert(key, at_parent, item['name'], item['tags'])
 
         # Recursively insert children
         for child in self.model.get_children_of(key):
@@ -2106,7 +2116,7 @@ class TreeControllerBase:
         - app must subclass this to provide data
         - input arg can be pre-filtered data
         """
-        self.view.clear()
+        self.picker.clear()
         is_filtered = data is not None
         if not data:
             data = self.model.get_all()
@@ -2120,7 +2130,11 @@ class TreeControllerBase:
 
         # Focus on the first root node
         if root_nodes:
-            self.view.focus_on(list(root_nodes.keys())[0])
+            self.picker.focus_on(list(root_nodes.keys())[0])
+
+    def notify(self, message):
+        for listeners in self.listeners.values():
+            listeners.update(message)
 
     def dump_model(self):
         """
@@ -2140,7 +2154,7 @@ class TreeControllerBase:
         - filter tree nodes by user input
         - update tree pane with filtered data
         """
-        keyword = self.view.filterEntry.get().strip().lower()
+        keyword = self.picker.filterEntry.get().strip().lower()
         if not keyword:
             self.fill()
             return
@@ -2150,28 +2164,41 @@ class TreeControllerBase:
     def on_mouse_ldown(self, event):
         """
         - update model focus on tree node selection
+        - no default notification is sent here for flexibility
+        - app must decide how to notify listeners
+          - to notify all, call self.notify(message)
+          - to force app to unpack data, call self.notify(self.model)
         """
-        def _do_after_selection_complete():
-            org_focus = self.model.get_focus_keys()
-            clicked_key = self.view.get_focus_from_mouseclick(event)
-            if not clicked_key:
-                # clicked blank area, so deselect all
-                self.model.focus_on([])
-                return
-            # avoid drag-click overwriting original selection
-            # - drag-click auto-selects the clicked item
-            # - must restore the original selection, i.e., a multi-sel
-            if dragging := clicked_key in org_focus:
-                self.view.set_selection(org_focus)
-            selected = self.view.get_selection()
-            if not selected:
-                self.model.focus_on([])
-                return
-            norm_selected = [selected] if isinstance(selected, str) else list(selected)
-            self.model.focus_on(norm_selected)
-            if dragging:
-                self.view.start_drag(event)
-        self.view.defer(dur_ms=10, func=_do_after_selection_complete)
+        self.picker.defer(dur_ms=1, func=lambda: self._after_selection_complete(event))
+
+    def _after_selection_complete(self, event):
+        """
+        - due to possible tkinter bug, a delay is needed to get the correct selection
+        - call self.picker.defer(dur_ms=1, func=lambda: self._after_selection_complete(event))
+        - adjust dur_ms if needed
+        """
+        org_focus = self.model.get_focus_keys()
+        clicked_key = self.picker.get_focus_from_mouseclick(event)
+        if not clicked_key:
+            # clicked blank area, so deselect all
+            self.model.focus_on([])
+            self.notify(self.model)
+            return
+        # avoid drag-click overwriting original selection
+        # - drag-click auto-selects the clicked item
+        # - must restore the original selection, i.e., a multi-sel
+        if dragging := clicked_key in org_focus:
+            self.picker.set_selection(org_focus)
+        selected = self.picker.get_selection()
+        if not selected:
+            self.model.focus_on([])
+            self.notify(self.model)
+            return
+        norm_selected = [selected] if isinstance(selected, str) else list(selected)
+        self.model.focus_on(norm_selected)
+        if dragging:
+            self.picker.start_drag(event)
+        self.notify(self.model)
 
     def on_keydown_updown(self, event):
         """
@@ -2179,13 +2206,13 @@ class TreeControllerBase:
         """
 
         def _do_after_selection_complete():
-            selected = self.view.get_selection()
+            selected = self.picker.get_selection()
             if not selected:
                 return
-            self.view.focus_on(selected)
+            self.picker.focus_on(selected)
             norm_selected = [selected] if isinstance(selected, str) else list(selected)
             self.model.focus_on(norm_selected)
-        self.view.defer(dur_ms=10, func=_do_after_selection_complete)
+        self.picker.defer(dur_ms=10, func=_do_after_selection_complete)
 
     def on_keydown_delete(self):
         """
@@ -2322,6 +2349,8 @@ class PropertyPane(ttk.LabelFrame):
         # lazy styling
         self.notebook = ttk.Notebook(self, style='TNotebook')
         self.notebook.pack(fill="both", expand=True, padx=0, pady=0)
+        self.propEntries = {}
+        self.settingEntries = {}
         # properties
         prop_frm = ttk.Frame(self.notebook)
         self.notebook.add(prop_frm, text="Properties")
@@ -2331,7 +2360,7 @@ class PropertyPane(ttk.LabelFrame):
             prop_nav_combobox.pack(side="top", expand=False)
             prop_grp_frm = ScrollFrame(prop_frm)
             prop_grp_frm.pack(side="top", fill="both", expand=True)
-            self.generate_entry_groups(prop_grp_frm, grp_prop_map)
+            self.propEntries = self.generate_entry_groups(prop_grp_frm, grp_prop_map)
         # global settings
         stts_frm = ttk.Frame(self.notebook)
         self.notebook.add(stts_frm, text="Settings")
@@ -2341,21 +2370,24 @@ class PropertyPane(ttk.LabelFrame):
             stts_nav_combobox.pack(side="top", expand=False)
             stts_grp_frm = ScrollFrame(stts_frm)
             stts_grp_frm.pack(side="top", fill="both", expand=True)
-            self.generate_entry_groups(stts_grp_frm, grp_stts_map)
+            self.settingEntries = self.generate_entry_groups(stts_grp_frm, grp_stts_map)
 
     def generate_entry_groups(self, master, group_prop_map):
         """
         - controller brings in sections from data files
         - model/settings item has a "group" field to categorize properties
         """
+        entries = {}
         for grp, props in group_prop_map.items():
             grp_frm = ttk.LabelFrame(master, text=grp)
             grp_frm.pack(fill="both", expand=True, padx=5, pady=5)
             for key, prop in props.items():
                 prop_entry = self.generate_entry(grp_frm, key, prop)
+                entries[key] = prop_entry
                 prop_entry.layout()
             # add a horizontal spacer
             ttk.Frame(master, height=5).pack(fill="x", expand=True)
+        return entries
 
     def generate_entry(self, group_frame, key, prop):
         """
@@ -2383,5 +2415,18 @@ class PropertyPane(ttk.LabelFrame):
             case _:
                 raise ValueError(f"Unknown property type: {prop['type']}")
         return entry
+
+    def update(self, model):
+        """
+        - update property pane with latest focus
+        """
+        focus_keys = model.get_focus_keys()
+        first_focus = focus_keys[0] if focus_keys else None
+        if not first_focus:
+            return
+        for key, value in model.get(first_focus).items():
+            if key not in self.propEntries:
+                continue
+            self.propEntries[key].set_data(value)
 
 # endregion
