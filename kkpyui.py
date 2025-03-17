@@ -2208,10 +2208,13 @@ class TreeControllerBase:
         def _do_after_selection_complete():
             selected = self.picker.get_selection()
             if not selected:
+                self.model.focus_on([])
+                self.notify(self.model)
                 return
             self.picker.focus_on(selected)
             norm_selected = [selected] if isinstance(selected, str) else list(selected)
             self.model.focus_on(norm_selected)
+            self.notify(self.model)
         self.picker.defer(dur_ms=10, func=_do_after_selection_complete)
 
     def on_keydown_delete(self):
