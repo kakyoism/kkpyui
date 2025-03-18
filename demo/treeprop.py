@@ -101,7 +101,7 @@ class DemoApp:
 
         # Create the TreePane
         self.treePane = ui.TreePane(self.root, "Tree", self.controller)
-        self.treePane.pack(side="left", fill="both", expand=True)
+        self.treePane.pack(side="left", fill="both", expand=False)
         self.controller.bind_picker(self.treePane)
 
         # Create the PropertyPane

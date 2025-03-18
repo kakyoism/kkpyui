@@ -367,51 +367,47 @@ class Page(ttk.LabelFrame):
 
 class ScrollFrame(ttk.Frame):
     def __init__(self, master, *args, **kwargs):
-        def _configure_interior(event):
-            """
-            - without this, scrollbar will not be configured properly
-            - because the inner frame initially does not fill the canvas
-            """
-            # Update the scrollbars to match the size of the inner frame.
-            # Set a minimum size to avoid freezing with empty content
-            min_width, min_height = 100, 100  # Adjust as needed
-            width, height = (max(min_width, self.frame.winfo_reqwidth()),
-                             max(min_height, self.frame.winfo_reqheight()))
-            self.canvas.configure(scrollregion=(0, 0, width, height), bg='#303841', highlightthickness=0)
-            if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
-                # update the canvas's width to fit the inner frame
-                self.canvas.config(width=self.frame.winfo_reqwidth())
-
-        def _configure_canvas(event):
-            # update the inner frame's width to fill the canvas
-            if self.frame.winfo_reqwidth() != self.canvas.winfo_width():
-                self.canvas.itemconfigure(frame_id, width=self.canvas.winfo_width())
         super().__init__(master, *args, **kwargs)
-        # CAUTION: the code below is order-sensitive!
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style='Vertical.TScrollbar')
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        self.frame = ttk.Frame(self.canvas,)
-        frame_id = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
-        self.canvas.bind('<Configure>', _configure_canvas)
-        self.frame.bind('<Configure>', _configure_interior)
-        scrollbar.pack(side="right", fill="y")
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.frame = ttk.Frame(self.canvas)
+        self.frameID = self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
+        self.scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.frame.pack(side="left", fill="both", expand=True)
+        # CAUTION: must bind frame resize-callback before canvas resize-callback, otherwise the scrollbar won't show up
+        self.frame.bind("<Configure>", self._configure_interior)
+        self.canvas.bind("<Configure>", self._expand_innerframe_to_canvas_width)
         self.frame.bind("<Enter>", self._bound_to_mousewheel)
         self.frame.bind("<Leave>", self._unbound_to_mousewheel)
 
-    def _on_canvas_configure(self, event):
+    def _configure_interior(self, event):
+        """
+        - without this, scrollbar will not be configured properly
+        - because the inner frame initially does not fill the canvas
+        - we make sure it expands to the canvas width
+        - we also ensure that the scrollable area matches the size of the content inside the canvas
+        """
+        self._expand_innerframe_to_canvas_width(event)
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def _on_mouse_scroll(self, event):
-        self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+    def _expand_innerframe_to_canvas_width(self, event):
+        if self.frame.winfo_reqwidth() == self.canvas.winfo_width():
+            return
+        self.canvas.itemconfigure(self.frameID, width=self.canvas.winfo_width())
 
     def _bound_to_mousewheel(self, event):
         self.canvas.bind_all("<MouseWheel>", self._on_mouse_scroll)
 
     def _unbound_to_mousewheel(self, event):
         self.canvas.unbind_all("<MouseWheel>")
+
+    def _on_mouse_scroll(self, event):
+        self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+
+    def update_scrollregion(self):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.frame.update_idletasks()
 
 
 class Form(ttk.PanedWindow):
@@ -1036,9 +1032,9 @@ class ProgressPrompt:
     - support determinate and indeterminate progress
     - using threading events to synchronize progress between ui and task threads
     - sync must have attributes:
-      - progEvent (ui.ProgressEvent)
+      - progEvent (ProgressEvent)
       - abortEvent (threading.Event)
-      - errorEvent (ui.ErrorEvent)
+      - errorEvent (ErrorEvent)
     - help must have attributes:
       - reporter (callable)
       - cookie (any object), optional argument for reporter function
@@ -2362,10 +2358,6 @@ class DropPaneBase(ttk.LabelFrame):
 
 
 class PropertyPane(ttk.LabelFrame):
-    """
-    - two-page notebook: property, settings
-    - property: waterfall layout with a top navigation combobox
-    """
     def __init__(self, master, controller, logger=None, **kwargs):
         super().__init__(master, **kwargs)
         self.controller = controller
@@ -2384,9 +2376,9 @@ class PropertyPane(ttk.LabelFrame):
         if grp_prop_map:  # avoid freezing
             prop_nav_combobox = ttk.Combobox(prop_frm, values=list(grp_prop_map.keys()))
             prop_nav_combobox.pack(side="top", expand=False)
-            prop_grp_frm = ScrollFrame(prop_frm)
-            prop_grp_frm.pack(side="top", fill="both", expand=True)
-            self.propEntries = self.generate_entry_groups(prop_grp_frm, grp_prop_map)
+            self.prop_grp_frm = ScrollFrame(prop_frm)
+            self.prop_grp_frm.pack(side="top", fill="both", expand=True)
+            self.propEntries = self.generate_entry_groups(self.prop_grp_frm, grp_prop_map)
         # global settings
         stts_frm = ttk.Frame(self.notebook)
         self.notebook.add(stts_frm, text="Settings")
@@ -2394,32 +2386,26 @@ class PropertyPane(ttk.LabelFrame):
         if grp_stts_map:  # avoid freezing
             stts_nav_combobox = ttk.Combobox(stts_frm, values=list(grp_stts_map.keys()))
             stts_nav_combobox.pack(side="top", expand=False)
-            stts_grp_frm = ScrollFrame(stts_frm)
-            stts_grp_frm.pack(side="top", fill="both", expand=True)
-            self.settingEntries = self.generate_entry_groups(stts_grp_frm, grp_stts_map)
+            self.stts_grp_frm = ScrollFrame(stts_frm)
+            self.stts_grp_frm.pack(side="top", fill="both", expand=True)
+            self.settingEntries = self.generate_entry_groups(self.stts_grp_frm, grp_stts_map)
 
     def generate_entry_groups(self, master, group_prop_map):
-        """
-        - controller brings in sections from data files
-        - model/settings item has a "group" field to categorize properties
-        """
         entries = {}
         for grp, props in group_prop_map.items():
-            grp_frm = ttk.LabelFrame(master, text=grp)
-            grp_frm.pack(fill="both", expand=True, padx=5, pady=5)
+            grp_frm = ttk.LabelFrame(master.frame, text=grp)  # Use master.frame for ScrollFrame
+            grp_frm.pack(fill="both", expand=True, padx=5, pady=5)  # Ensure proper packing
             for key, prop in props.items():
                 prop_entry = self.generate_entry(grp_frm, key, prop)
                 entries[key] = prop_entry
                 prop_entry.layout()
             # add a horizontal spacer
-            ttk.Frame(master, height=5).pack(fill="x", expand=True)
+            ttk.Frame(master.frame, height=5).pack(fill="x", expand=True)
+        # Explicitly update the scroll region after adding all widgets
+        master.update_scrollregion()
         return entries
 
     def generate_entry(self, group_frame, key, prop):
-        """
-        - generate entry based on prop type
-        - prop format: {name: title, type, default, doc, presetable, minmax, step, precision, options, file_patterns, start_dir}
-        """
         entry = None
         match prop.get('type'):
             case 'bool':
@@ -2443,9 +2429,6 @@ class PropertyPane(ttk.LabelFrame):
         return entry
 
     def update(self, model):
-        """
-        - update property pane with latest focus
-        """
         focus_keys = model.get_focus_keys()
         first_focus = focus_keys[0] if focus_keys else None
         if not first_focus:
