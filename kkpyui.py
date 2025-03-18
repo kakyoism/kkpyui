@@ -1986,6 +1986,7 @@ class TreePane(ttk.LabelFrame):
         # model needs to update focus on key navigation
         self.tree.bind("<Up>", self.controller.on_keydown_updown)
         self.tree.bind("<Down>", self.controller.on_keydown_updown)
+        self.tree.bind("<Delete>", self.controller.on_keydown_delete)
 
     def configure_tree_colorcode(self, tag_color_map):
         for tag, color in tag_color_map.items():
@@ -1999,7 +2000,11 @@ class TreePane(ttk.LabelFrame):
 
     def remove(self, keys):
         for key in keys:
+            children = self.tree.get_children(key)
+            if children:
+                self.remove(children)
             self.tree.delete(key)
+
 
     def clear(self):
         self.tree.delete(*self.tree.get_children())
@@ -2034,7 +2039,10 @@ class TreePane(ttk.LabelFrame):
     def set_selection(self, keys):
         return self.tree.selection_set(keys if isinstance(keys, str) else keys[0])
 
-    def get_children(self, at_parent):
+    def get_children(self, at_parent=None):
+        """
+        - when parent is none, return all root-level nodes
+        """
         return self.tree.get_children(at_parent)
 
     def start_drag(self, event):
@@ -2215,15 +2223,26 @@ class TreeControllerBase:
             norm_selected = [selected] if isinstance(selected, str) else list(selected)
             self.model.focus_on(norm_selected)
             self.notify(self.model)
-        self.picker.defer(dur_ms=10, func=_do_after_selection_complete)
+        self.picker.defer(dur_ms=1, func=_do_after_selection_complete)
 
-    def on_keydown_delete(self):
+    def on_keydown_delete(self, event):
         """
         - must be called from top-level window due to tkinter limitation
         """
         if not (focus_keys := self.model.get_focus_keys()):
             return
+        # must remove from view first, bcs model.remove() auto-removes the focus keys
+        self.picker.remove(focus_keys)
         self.model.remove(focus_keys)
+        # replace focus with the
+        roots = self.picker.get_children()
+        if not roots:
+            return
+        first_root = roots[0]
+        self.picker.focus_on(first_root)
+        self.model.focus_on([first_root])
+        self.notify(self.model)
+
 
 
 class TreeModelBase:
@@ -2290,6 +2309,10 @@ class TreeModelBase:
         self.focusKeys = keys
 
     def remove(self, keys):
+        """
+        - recursively remove nodes and their descendants
+        - implementation depends on data structure of subclass
+        """
         raise NotImplementedError('subclass this!')
 
 

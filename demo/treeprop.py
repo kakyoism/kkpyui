@@ -33,6 +33,8 @@ class DemoTreeModel(ui.TreeModelBase):
         return next((k for k, v in self.data.items() if key in v.get('children', [])), None)
 
     def get_children_of(self, key):
+        if key not in self.data:
+            return []
         return self.data[key]['children']
 
     def dump(self):
@@ -48,9 +50,14 @@ class DemoTreeModel(ui.TreeModelBase):
 
     def remove(self, keys):
         for key in keys:
-            if key in self.data:
-                del self.data[key]
-
+            children = self.get_children_of(key)
+            if children:
+                self.remove(children)
+            self.data.pop(key, None)
+            try:
+                self.focusKeys.remove(key)
+            except ValueError:
+                pass
 
 class DemoTreeController(ui.TreeControllerBase):
     """
