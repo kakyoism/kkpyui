@@ -45,6 +45,10 @@ class DemoTreeModel(ui.TreeModelBase):
             'General': {
                 'name': {'title': 'Name', 'type': 'str', 'default': 'Node', 'help': 'Name of the node'},
                 'tags': {'title': 'Tags', 'type': 'str', 'default': '', 'help': 'Tags for the node'},
+            },
+            'Misc': {
+                'name': {'title': 'Name', 'type': 'str', 'default': 'Node', 'help': 'Name of the node'},
+                'tags': {'title': 'Tags', 'type': 'str', 'default': '', 'help': 'Tags for the node'},
             }
         }
 
