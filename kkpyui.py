@@ -2086,39 +2086,10 @@ class TreeControllerBase:
     def add_listener(self, key, view):
         self.listeners[key] = view
 
-    def insert_subtree(self, key, at_parent=''):
-        """
-        - add tree from a root node into tree pane by recursion
-        - append to end by default if no parent is given
-        - model item must have keys: name, tags, children
-        """
-        item = self.model.get(key)
-        assert item, f"Item {key} not found in model."
-
-        # Debug: Print the current key and parent
-        self.logger.debug(f'Inserting item: key={key}, at_parent={at_parent}')
-
-        # Check if the item already exists in the tree
-        existing_children = self.picker.get_children(at_parent)
-        self.logger.debug(f'Existing children for parent {at_parent}: {existing_children}')
-
-        if key in existing_children:
-            self.logger.debug(f'Item already exists in tree pane: {key}; skipped')
-            return
-
-        # Insert the item into the tree
-        self.picker.insert(key, at_parent, item['name'], item['tags'])
-
-        # Recursively insert children
-        for child in self.model.get_children_of(key):
-            self.insert_subtree(child, at_parent=key)
-
     def fill(self, data=None):
         """
-        - populate tree pane with full or filtered data
-        - data is a flat dict: {key: item}; item is a flat dict that has 'children' field to link to item's children; children are flat in the key-item dict
-        - app must subclass this to provide data
-        - input arg can be pre-filtered data
+        - populate tree pane with full or filtered data.
+        - data is {key: item} dict
         """
         self.picker.clear()
         is_filtered = data is not None
@@ -2126,15 +2097,26 @@ class TreeControllerBase:
             data = self.model.get_all()
         if not data:
             return
-
         # Add root-level nodes only
         root_nodes = {key: item for key, item in data.items() if not self.model.get_parent_of(key)}
         for key, item in root_nodes.items():
-            self.insert_subtree(key)
-
+            self.insert_subtree(key, data)
         # Focus on the first root node
         if root_nodes:
             self.picker.focus_on(list(root_nodes.keys())[0])
+
+    def insert_subtree(self, key, data, at_parent=''):
+        """
+        - add tree from a root node into tree pane by recursion.
+        """
+        item = data.get(key)
+        if not item:
+            return
+        # Insert the item into the tree
+        self.picker.insert(key, at_parent, item['name'], item.get('tags', []))
+        # Recursively insert children
+        for child_key in item.get('children', []):
+            self.insert_subtree(child_key, data, at_parent=key)
 
     def notify(self, message):
         for listeners in self.listeners.values():
@@ -2155,15 +2137,48 @@ class TreeControllerBase:
 
     def on_filter_update(self, event):
         """
-        - filter tree nodes by user input
-        - update tree pane with filtered data
+        Filter tree nodes by user input.
+        Update tree pane with filtered data.
         """
+        # Recursive function to traverse the tree and find matching nodes
+        def _traverse_and_filter(node_key):
+            node = _all_nodes.get(node_key)
+            if not node:
+                return False
+            # Check if the current node matches the keyword
+            matches = keyword in node['name'].lower()
+            # Recursively check children
+            for child_key in node.get('children', []):
+                if _traverse_and_filter(child_key):
+                    matches = True
+            # If the current node or any of its children match, add it to the visible set
+            if matches:
+                _visible_nodes.add(node_key)
+            return matches
+        # Build a filtered tree structure that includes only visible nodes and their ancestors
+        def _build_filtered_tree(node_key):
+            node = _all_nodes.get(node_key)
+            if not node or node_key not in _visible_nodes:
+                return None
+            # Create a copy of the node with filtered children
+            filtered_node = node.copy()
+            filtered_node['children'] = [child_key for child_key in node.get('children', []) if child_key in _visible_nodes]
+            return filtered_node
         keyword = self.picker.filterEntry.get().strip().lower()
         if not keyword:
+            # If the keyword is empty, show the full tree
             self.fill()
             return
-        filtered = {key: item for key, item in self.model.get_all().items() if keyword in item['name'].lower()}
-        self.fill(filtered)
+        # Get all nodes from the model
+        _all_nodes = self.model.get_all()
+        # Create a set to store nodes that match the keyword or are ancestors of matching nodes
+        _visible_nodes = set()
+        # Start traversal from root nodes
+        root_nodes = [key for key, item in _all_nodes.items() if not self.model.get_parent_of(key)]
+        for root_key in root_nodes:
+            _traverse_and_filter(root_key)
+        filtered_data = {key: _build_filtered_tree(key) for key in _visible_nodes if _build_filtered_tree(key) is not None}
+        self.fill(filtered_data)
 
     def on_mouse_ldown(self, event):
         """
