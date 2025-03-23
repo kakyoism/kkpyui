@@ -792,6 +792,17 @@ class ProgressBar(WaitBar):
         self.prog.set(0)
         self.master.update_idletasks()
 
+    def start(self, topic: str, description: str = None):
+        self.topic = topic
+        if description:
+            self.desc = description
+        self.prog.set(0)
+
+    def stop(self, description: str = None):
+        if description:
+            self.desc = description
+        # self.prog.set(100)
+
     def receive_progress(self, topic: str, progress: int, description: str = '...'):
         # print(f'receiving progress ... {topic=}, {progress=}, {description=}')
         self.prog.set(progress)
