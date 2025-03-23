@@ -239,8 +239,8 @@ class Root(tk.Tk):
         # Expose: called even when slider is dragged, so we don't use it
         # Map: triggered when windows are visible, called every frame
         # Destroy: triggered when windows are closed, called every frame
-        self.bind('<Map>', lambda event: self.on_during_activate(event))
-        self.bind('<Destroy>', lambda event: self.on_during_deactivate(event))
+        self.bind('<Map>', self.on_during_activate)
+        self.bind('<Destroy>', self.on_during_deactivate)
         # startup event: init(), must be called by client
         # bind X button to quit the program
         self.protocol('WM_DELETE_WINDOW', self.controller.on_quit)
@@ -2126,7 +2126,8 @@ class ControllerBase:
         - binding of <Destroy> event as logical termination
         - called AFTER triggering WM_DELETE_WINDOW
         - called once when the root window disappears, from foreground to background
-        - on macOS: called on Cmd+Q key-combo, which quits python launcher and bypasses WM_DELETE_WINDOW
+        - on macOS: called on Cmd+Q key-combo as a sure-kill, which quits python launcher and bypasses WM_DELETE_WINDOW; CAUTION: no prompt can stop the quit once we are in <Destroy>; on_shutdown() only gives user a chance to put the quit on hold until
+        dismissing the prompt
         """
         if util.PLATFORM == 'Darwin':
             self.on_quit()
