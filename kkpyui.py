@@ -201,9 +201,10 @@ def safe_get_number(tknumvar: tk.Variable):
 
 
 class Root(tk.Tk):
-    def __init__(self, title, size=(800, 600), icon=None, *args, **kwargs):
+    def __init__(self, title, controller, size=(800, 600), icon=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.title(title)
+        self.controller = controller
         screen_size = (self.winfo_screenwidth(), self.winfo_screenheight())
         self.geometry('{}x{}+{}+{}'.format(
             size[0],
@@ -215,9 +216,9 @@ class Root(tk.Tk):
         # self.validateFloatCmd = (self.register(_validate_float), '%P', '%S', '%W')
         if icon:
             self.iconphoto(True, tk.PhotoImage(file=icon))
-        self.controller = None
         # used by on_during_deactivate only for the shutdown sequence only
         self.isActive = False
+        self.bind_events()
         self._auto_focus()
 
     def bind_controller(self, controller):
@@ -2129,11 +2130,11 @@ class FormController(ControllerBase):
     - model and app-config share the same keys
     - backend task works in task thread
     - progressbar and task synchronize via threading.Event
+    - app must bind picker/views explicitly
     """
 
-    def __init__(self, form=None, model=None, to_block=True):
-        super().__init__(model, None)
-        self.bind_picker(form)
+    def __init__(self, model=None, settings=None, to_block=True):
+        super().__init__(model, settings)
         self.taskThread = None
         self.progUI = None
         self.progEvent = Globals.progEvent

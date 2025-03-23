@@ -22,8 +22,8 @@ import kkpyutil as util
 
 
 class Controller(ui.FormController):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model=None, settings=None, to_block=False):
+        super().__init__(model, settings, to_block)
 
     def on_open_help(self):
         self.info('Dev: Just use it! Trust yourself and the log!')
@@ -61,13 +61,12 @@ class Controller(ui.FormController):
 
 @util.rerun_lock(name=__file__, folder=osp.abspath(f'{util.get_platform_tmp_dir()}/kkpyui/character_design'))
 def main():
-    root = ui.FormRoot('Form Demo: Character Design', (800, 600))
+    # ensure progressbar should not block while waiting
+    ctrlr = Controller(None, None, False)
+    root = ui.FormRoot('Form Demo: Character Design', ctrlr, (800, 600))
     ui.init_style()
     form = ui.Form(root, ['profile', 'plot', 'output'])
-    # ensure progressbar should not block while waiting
-    ctrlr = Controller(form, None, False)
-    root.bind_controller(ctrlr)
-    root.bind_events()
+    ctrlr.bind_picker(form)
     menu = ui.FormMenu(root, ctrlr)
     # Adding widgets to pages
     pg1 = form.pages['profile']

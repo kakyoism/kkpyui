@@ -35,8 +35,8 @@ class Controller(ui.FormController):
       - kk OSClisten gilisten, "/quit", "i", gkquit
     """
 
-    def __init__(self, fm=None, model=None, to_block=False):
-        super().__init__(fm, model, to_block)
+    def __init__(self, model=None, settings=None, to_block=False):
+        super().__init__(model, settings, to_block)
         self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
         self.playing = False
         self.curEngine = None
@@ -76,7 +76,8 @@ class Controller(ui.FormController):
     def on_shutdown(self, event=None) -> bool:
         if not super().on_shutdown():
             return False
-        if ui.Globals.root.isActive:
+        root = self.picker.winfo_toplevel()
+        if root.isActive:
             self.on_cancel()
         util.kill_process_by_name('csound')
         return True
@@ -104,13 +105,12 @@ class Controller(ui.FormController):
 
 
 def main():
-    root = ui.FormRoot('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
+    # ensure progressbar should not block while waiting
+    ctrlr = Controller(None, None, False)
+    root = ui.FormRoot('Controller Demo: Oscillator', ctrlr, (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
     ui.init_style()
     form = ui.Form(root, ['general', 'output'])
-    # ensure progressbar should not block while waiting
-    ctrlr = Controller(form, None, False)
-    root.bind_controller(ctrlr)
-    root.bind_events()
+    ctrlr.bind_picker(form)
     menu = ui.FormMenu(root, ctrlr)
     pg1 = form.pages['general']
     pg2 = form.pages['output']
