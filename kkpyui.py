@@ -50,7 +50,6 @@ class ErrorEvent(threading.Event):
 
 
 class Globals:
-    root = None
     progEvent = ProgressEvent()
     abortEvent = threading.Event()
     errorEvent = ErrorEvent()
@@ -292,7 +291,7 @@ class FormRoot(Root):
         """
         super().bind_events()
         # Platform-specific key bindings for submission
-        shortcut = '<Control-Return>' if util.PLATFORM == 'Darwin' else '<Control-Return>'
+        shortcut = '<Command-Return>' if util.PLATFORM == 'Darwin' else '<Control-Return>'
         self.bind(shortcut, self.controller.on_submit)
         self.bind('<Escape>', lambda event: self.controller.on_cancel(event))
 

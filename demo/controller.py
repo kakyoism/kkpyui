@@ -104,14 +104,14 @@ class Controller(ui.FormController):
 
 
 def main():
-    ui.Globals.root = ui.FormRoot('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
+    root = ui.FormRoot('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
     ui.init_style()
-    form = ui.Form(ui.Globals.root, ['general', 'output'])
+    form = ui.Form(root, ['general', 'output'])
     # ensure progressbar should not block while waiting
     ctrlr = Controller(form, None, False)
-    ui.Globals.root.bind_controller(ctrlr)
-    ui.Globals.root.bind_events()
-    menu = ui.FormMenu(ui.Globals.root, ctrlr)
+    root.bind_controller(ctrlr)
+    root.bind_events()
+    menu = ui.FormMenu(root, ctrlr)
     pg1 = form.pages['general']
     pg2 = form.pages['output']
     # Adding widgets to pages
@@ -122,9 +122,9 @@ def main():
     oscillator_entry.set_tracer(ctrlr.on_oscillator_changed)
     freq_entry.set_tracer(ctrlr.on_freq_changed)
     gain_entry.set_tracer(ctrlr.on_gain_changed)
-    action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
-    wait_bar = ui.WaitBar(ui.Globals.root, ctrlr)
-    ui.Globals.root.mainloop()
+    action_bar = ui.FormActionBar(root, ctrlr)
+    wait_bar = ui.WaitBar(root, ctrlr)
+    root.mainloop()
 
 
 if __name__ == "__main__":

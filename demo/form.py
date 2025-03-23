@@ -61,14 +61,14 @@ class Controller(ui.FormController):
 
 @util.rerun_lock(name=__file__, folder=osp.abspath(f'{util.get_platform_tmp_dir()}/kkpyui/character_design'))
 def main():
-    ui.Globals.root = ui.FormRoot('Form Demo: Character Design', (800, 600))
+    root = ui.FormRoot('Form Demo: Character Design', (800, 600))
     ui.init_style()
-    form = ui.Form(ui.Globals.root, ['profile', 'plot', 'output'])
+    form = ui.Form(root, ['profile', 'plot', 'output'])
     # ensure progressbar should not block while waiting
     ctrlr = Controller(form, None, False)
-    ui.Globals.root.bind_controller(ctrlr)
-    ui.Globals.root.bind_events()
-    menu = ui.FormMenu(ui.Globals.root, ctrlr)
+    root.bind_controller(ctrlr)
+    root.bind_events()
+    menu = ui.FormMenu(root, ctrlr)
     # Adding widgets to pages
     pg1 = form.pages['profile']
     pg2 = form.pages['plot']
@@ -85,9 +85,9 @@ def main():
     episode_wgt = ui.ListEntry(pg2, 'episodes', 'Appeared in Episodes', ['ep01', 'ep02', 'ep03', 'ep04', 'ep05', 'ep06', 'ep07', 'ep08', 'ep09', 'ep10', 'ep11', 'ep12', 'ep13', 'ep14', 'ep15', 'ep16', 'ep17', 'ep18', 'ep19', 'ep20', 'ep21', 'ep22',
                                                                          'ep23', 'ep24', 'ep25', 'ep26'], 'List of episodes in which this character appears', True)
     export_wgt = ui.ReadOnlyPathEntry(pg3, 'export', 'Export to File', '', 'Path to exported file')
-    action_bar = ui.FormActionBar(ui.Globals.root, ctrlr)
-    progress_bar = ui.ProgressBar(ui.Globals.root, ctrlr)
-    ui.Globals.root.mainloop()
+    action_bar = ui.FormActionBar(root, ctrlr)
+    progress_bar = ui.ProgressBar(root, ctrlr)
+    root.mainloop()
 
 
 if __name__ == "__main__":
