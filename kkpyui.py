@@ -291,8 +291,10 @@ class FormRoot(Root):
         - refer to Inter-Client Communication Conventions Manual ICCCM for possible window events
         """
         super().bind_events()
-        self.bind("<Return>", self.controller.on_submit)
-        self.bind("<Escape>", lambda event: self.controller.on_cancel(event))
+        # Platform-specific key bindings for submission
+        shortcut = '<Control-Return>' if util.PLATFORM == 'Darwin' else '<Control-Return>'
+        self.bind(shortcut, self.controller.on_submit)
+        self.bind('<Escape>', lambda event: self.controller.on_cancel(event))
 
     def mainloop(self, n: int = 0):
         """
@@ -310,8 +312,8 @@ class Prompt:
     - otherwise the app will freeze upon confirmation
     """
 
-    def __init__(self, master=Globals.root, logger=None):
-        self.master = master
+    def __init__(self, master, logger=None):
+        self.master = master.winfo_toplevel()  # must slave to toplevel window
         self.logger = logger or util.glogger
 
     def info(self, msg, confirm=True):
@@ -450,7 +452,7 @@ class Form(ttk.PanedWindow):
         self.add(self.navPane, weight=0)
         self.add(self.entryPane, weight=1)
         self.pages = {title.lower(): Page(self.entryPane.frame, title.title(),) for title in page_titles}
-        self.prompt = Prompt()
+        self.prompt = Prompt(self)
         self.init()
         self.layout()
 
@@ -564,7 +566,8 @@ class Entry(ttk.Frame):
         # - windows
         self.label.bind("<Button-3>", self.show_context_menu)
         # getting out of focus so that key strokes will not be intercepted by the entry
-        self.field.bind("<Escape>", lambda event: Globals.root.focus_set())
+        root = self.winfo_toplevel()
+        self.field.bind("<Escape>", lambda event: root.focus_set())
         # CAUTION: add to panedwindow otherwise entry won't show up
         self.layout()
 
@@ -1077,7 +1080,7 @@ class NumberEntry(Entry):
             self.slider.bind("<ButtonRelease-1>", self.on_scale_clicked)
         self.spinbox.bind('<KeyPress>', self.on_start_typing)
         self.spinbox.bind('<KeyRelease>', self.on_stop_typing)
-        self.spinbox.bind('<FocusOut>', self.validate_data)
+        self.spinbox.bind('<Return>', self.validate_data)
 
     def set_data(self, value):
         self.data.set(value)
@@ -1129,26 +1132,29 @@ class NumberEntry(Entry):
         """
         value = safe_get_number(self.data)
         if not util.is_number_text(str(value)):
-            self._alert_and_refocus(value, f'{self.text} ({value}) is not a number')
+            self._alert_and_refocus(value, f'{self.text} ({value}) is not a number; will reset.')
+            self.reset()
+            if hasattr(self, 'sliderRatio'):
+                self._sync_scale_with_spinbox()
             return False
         # range check
         minval = self.spinbox.config('from')[4]
         maxval = self.spinbox.config('to')[4]
-        try:
-            if not (minval <= value <= maxval):
-                self._alert_and_refocus(value, f'{self.text} ({value}) is outside range: [{minval}, {maxval}]')
-                return False
-        except ValueError as e:
-            self._alert_and_refocus(value, f'{self.text} ({value}) triggerd unknown error: {e}')
-            return False
+        if value < minval:
+            self.set_data(minval)
+            self._alert_and_refocus(value, f'{self.text} ({value}) is too small; will clamp to min')
+        elif value > maxval:
+            self.set_data(maxval)
+            self._alert_and_refocus(value, f'{self.text} ({value}) is too big; will clamp to max')
         if hasattr(self, 'sliderRatio'):
             self._sync_scale_with_spinbox()
         return True
 
     def _alert_and_refocus(self, value, err_msg):
-        Globals.root.bell()
+        root = self.winfo_toplevel()
+        root.bell()
         util.alert(err_msg, 'ERROR')
-        Globals.root.after(100, lambda: self.spinbox.focus_set())
+        self.spinbox.focus_set()
 
 
 class IntEntry(NumberEntry):
@@ -2097,7 +2103,7 @@ class ControllerBase:
         - safely schedules shutdown with prompt and early-outs if user cancels
         - subclass this for post-ops
         """
-        prompt = Prompt()
+        prompt = Prompt(self.picker or list(self.listeners.values())[0])
         # Make default behavior a safe bet
         if prompt.warning('Quitting: You may lose unsaved data and all progress. Click Yes to wait, or No to force-quit', 'Verify first.', question='Keep waiting?', confirm=True):
             # user decided to wait
