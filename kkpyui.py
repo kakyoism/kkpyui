@@ -382,6 +382,9 @@ class ScrollFrame(ttk.Frame):
     def __init__(self, master, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0)
+        # Apply background color only if Globals.style exists
+        if Globals.style:
+            self.canvas.configure(bg=Globals.style.lookup('TFrame', 'background'))
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.frame = ttk.Frame(self.canvas)
