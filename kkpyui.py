@@ -362,14 +362,6 @@ class Page(ttk.LabelFrame):
         super().__init__(master, text=title, **kwargs)
         self.grid_columnconfigure(0, weight=1)
 
-    @staticmethod
-    def add(entries):
-        """
-        - vertical layout
-        """
-        for entry in entries:
-            entry.layout()
-
     def get_title(self):
         return self.cget('text')
 
@@ -573,8 +565,8 @@ class Entry(ttk.Frame):
         self.label.bind("<Button-3>", self.show_context_menu)
         # getting out of focus so that key strokes will not be intercepted by the entry
         self.field.bind("<Escape>", lambda event: Globals.root.focus_set())
-        # CAUTION: add to master otherwise entry won't show up
-        self.master.add([self])
+        # CAUTION: add to panedwindow otherwise entry won't show up
+        self.layout()
 
     def _init_data(self, var_cls):
         return var_cls(master=self, name=self.text, value=self.default)
