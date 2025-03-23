@@ -104,12 +104,12 @@ class Controller(ui.FormController):
 
 
 def main():
-    ui.Globals.root = ui.Root('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
+    ui.Globals.root = ui.FormRoot('Controller Demo: Oscillator', (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
     ui.init_style()
     form = ui.Form(ui.Globals.root, ['general', 'output'])
     # ensure progressbar should not block while waiting
     ctrlr = Controller(form, None, False)
-    ui.Globals.root.set_controller(ctrlr)
+    ui.Globals.root.bind_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     pg1 = form.pages['general']

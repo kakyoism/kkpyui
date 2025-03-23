@@ -5,6 +5,7 @@ import sys
 _script_dir = osp.abspath(osp.dirname(__file__))
 sys.path.insert(0, repo_root := osp.abspath(f'{_script_dir}/..'))
 import kkpyui as ui
+import kkpyutil as util
 
 
 class DemoTreeModel(ui.TreeModelBase):
@@ -37,31 +38,34 @@ class DemoTreeModel(ui.TreeModelBase):
             return []
         return self.data[key]['children']
 
-    def dump(self):
+    def adapt_to_view(self):
         """
         Dump the model into a group-prop pairs format for the PropertyPane.
         """
         return {
             'General': {
                 'name': {'title': 'Name', 'type': 'str', 'default': 'Node', 'help': 'Name of the node'},
-                'tags': {'title': 'Tags', 'type': 'str', 'default': '', 'help': 'Tags for the node'},
+                'age': {'title': 'Age', 'type': 'int', 'default': '18', 'range': [18, 100], 'help': 'age of the node'},
             },
             'Misc': {
-                'name': {'title': 'Name', 'type': 'str', 'default': 'Node', 'help': 'Name of the node'},
-                'tags': {'title': 'Tags', 'type': 'str', 'default': '', 'help': 'Tags for the node'},
+                'nickname': {'title': 'Nickname', 'type': 'str', 'default': 'Node', 'help': 'Name of the node'},
+                'gender': {'title': 'Gender', 'type': 'option', 'default': 'Unknown', 'range': ['Male', 'Female', 'Unknown'], 'help': 'Tags for the node'},
             }
         }
 
-    def remove(self, keys):
-        for key in keys:
-            children = self.get_children_of(key)
-            if children:
-                self.remove(children)
-            self.data.pop(key, None)
-            try:
-                self.focusKeys.remove(key)
-            except ValueError:
-                pass
+
+class Settings(ui.SettingsModelBase):
+    def __init__(self, path):
+        super().__init__(path)
+        data_folder = osp.dirname(self.path)
+        data_file = osp.join(data_folder, 'model.json')
+        self.data = {
+            'title': {'name': 'title', 'title': 'Window Title', 'type': 'str', 'default': 'My Demo App', 'value': 'My Demo App', 'help': 'Title of the app', 'tags': [], 'group': 'General'},
+            'export': {'name': 'export', 'title': 'Export Data To File', 'type': 'file', 'default': data_file, 'value': data_file, 'range': [('JSON file', '*.json')], 'startDir': osp.dirname(data_file), 'help': 'Export model data to a file',
+                       'tags': [],
+                       'group': 'General'},
+        }
+
 
 class DemoTreeController(ui.TreeControllerBase):
     """
@@ -92,12 +96,11 @@ class DemoApp:
     """
     def __init__(self):
         # Create the main window
-        self.root = tk.Tk()
-        self.root.title("Demo App")
-        self.root.geometry("800x600")
-        self.tree_model = DemoTreeModel()
-        self.settings = ui.Settings(osp.join(osp.dirname(__file__), 'settings.json'))
-        self.controller = DemoTreeController(self.tree_model, self.settings)
+        self.root = ui.Root("Demo App", (800, 600))
+        self.treeModel = DemoTreeModel()
+        export_to = osp.abspath(f'{util.get_platform_appdata_dir()}/my_demo_app/settings.json')
+        self.settings = Settings(export_to)
+        self.controller = DemoTreeController(self.treeModel, self.settings)
 
         # Create the TreePane
         self.treePane = ui.TreePane(self.root, "Tree", self.controller)

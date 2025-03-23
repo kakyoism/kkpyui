@@ -29,7 +29,7 @@ class Controller(ui.FormController):
         self.info('Dev: Just use it! Trust yourself and the log!')
 
     def on_open_diagnostics(self):
-        log = util.find_log_path(self.form.prompt.logger)
+        log = util.find_log_path(self.view.prompt.logger)
         if not log:
             return
         util.open_in_browser(log)
@@ -61,12 +61,12 @@ class Controller(ui.FormController):
 
 @util.rerun_lock(name=__file__, folder=osp.abspath(f'{util.get_platform_tmp_dir()}/kkpyui/character_design'))
 def main():
-    ui.Globals.root = ui.Root('Form Demo: Character Design', (800, 600))
+    ui.Globals.root = ui.FormRoot('Form Demo: Character Design', (800, 600))
     ui.init_style()
     form = ui.Form(ui.Globals.root, ['profile', 'plot', 'output'])
     # ensure progressbar should not block while waiting
     ctrlr = Controller(form, None, False)
-    ui.Globals.root.set_controller(ctrlr)
+    ui.Globals.root.bind_controller(ctrlr)
     ui.Globals.root.bind_events()
     menu = ui.FormMenu(ui.Globals.root, ctrlr)
     # Adding widgets to pages

@@ -221,7 +221,7 @@ class Root(tk.Tk):
         self.isActive = False
         self._auto_focus()
 
-    def set_controller(self, controller):
+    def bind_controller(self, controller):
         """
         - controller is used in many non-contiguous calls in the init sequence
         - so for DRY, it needs to be a member
@@ -233,13 +233,9 @@ class Root(tk.Tk):
     def bind_events(self):
         """
         - controller interface must implement:
-          - ENTER key event: default action
-          - ESC key event: cancel/negate default action
           - Window X button event: quit
         - refer to Inter-Client Communication Conventions Manual ICCCM for possible window events
         """
-        self.bind("<Return>", self.controller.on_submit)
-        self.bind("<Escape>", lambda event: self.controller.on_cancel(event))
         # Expose: called even when slider is dragged, so we don't use it
         # Map: triggered when windows are visible, called every frame
         # Destroy: triggered when windows are closed, called every frame
@@ -262,15 +258,6 @@ class Root(tk.Tk):
         self.focus_force()
         self.bind('<FocusIn>', _unpin_root)
 
-    def mainloop(self, n: int = 0):
-        """
-        - prepend custom pre-startup event
-        - this solves the problem where <Map> event, being a per-frame activation event, gets called many times instead of just once, which is redundant for startup logic
-        """
-        self.controller.update_model()
-        self.after(0, self.controller.on_startup)
-        super().mainloop()
-
     def on_during_activate(self, event):
         """
         - called every frame during the root window display process, i.e., from background to foreground
@@ -289,6 +276,32 @@ class Root(tk.Tk):
             return
         self.controller.on_deactivate(event)
         self.isActive = False
+
+
+class FormRoot(Root):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def bind_events(self):
+        """
+        - controller interface must implement:
+          - ENTER key event: default action
+          - ESC key event: cancel/negate default action
+          - Window X button event: quit
+        - refer to Inter-Client Communication Conventions Manual ICCCM for possible window events
+        """
+        super().bind_events()
+        self.bind("<Return>", self.controller.on_submit)
+        self.bind("<Escape>", lambda event: self.controller.on_cancel(event))
+
+    def mainloop(self, n: int = 0):
+        """
+        - prepend custom pre-startup event
+        - this solves the problem where <Map> event, being a per-frame activation event, gets called many times instead of just once, which is redundant for startup logic
+        """
+        self.controller.update_model()
+        self.after(0, self.controller.on_startup)
+        super().mainloop()
 
 
 class Prompt:
@@ -557,6 +570,8 @@ class Entry(ttk.Frame):
         self.label.bind("<Button-3>", self.show_context_menu)
         # getting out of focus so that key strokes will not be intercepted by the entry
         self.field.bind("<Escape>", lambda event: Globals.root.focus_set())
+        # CAUTION: add to master otherwise entry won't show up
+        self.master.add([self])
 
     def _init_data(self, var_cls):
         return var_cls(master=self, name=self.text, value=self.default)
@@ -641,243 +656,6 @@ class FormMenu(tk.Menu):
 
     def on_quit(self):
         self.controller.on_quit(None)
-
-
-class FormController:
-    """
-    - observe all entries and update model
-    - both form and realtime apps can use this class
-    - form apps can use submit() to update model
-    - realtime apps can set arg-tracers
-    - model and app-config share the same keys
-    - backend task works in task thread
-    - progressbar and task synchronize via threading.Event
-    """
-
-    def __init__(self, form=None, model=None, to_block=True):
-        self.form = form
-        self.model = model
-        self.taskThread = None
-        self.progUI = None
-        self.progEvent = Globals.progEvent
-        self.abortEvent = Globals.abortEvent
-        self.toBlockWhileAwait = to_block
-
-    def validate_form(self):
-        return self.form.validate_entries()
-
-    def update_model(self):
-        config_by_page = {
-            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children()}
-            for title, pg in self.form.pages.items()
-        }
-        self.model = {k: v for entries in config_by_page.values() for k, v in entries.items()}
-
-    def update_view(self):
-        self.load_preset(self.model)
-
-    def load_preset(self, preset):
-        """
-        - model includes input and config
-        - input is runtime data that changes with each run
-        - only config will be saved/loaded as preset
-        """
-        config = util.load_json(preset) if isinstance(preset, str) else preset
-        for title, page in self.form.pages.items():
-            for entry in page.winfo_children():
-                try:
-                    entry.set_data(config[entry.key])
-                except KeyError as e:
-                    util.glogger.error(f'{entry.key=}, {entry.data.get()=}, {self.model=}: {e}')
-                except Exception as e:
-                    util.glogger.error(f'{entry.key=}, {entry.data.get()=}, {self.model=}: {e}')
-
-    def save_preset(self, preset):
-        """
-        - only config is saved
-        - input always belongs to group "input"
-        - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
-        """
-        config_by_page = {
-            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isPresetable}
-            for title, pg in self.form.pages.items()
-        }
-        config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
-        util.save_json(preset, config)
-
-    def is_scheduled_to_stop(self):
-        return self.abortEvent.is_set()
-
-    def bind_progress(self, prog_ui):
-        self.progUI = prog_ui
-
-    def start_progress(self):
-        """
-        - only used by indeterminate progressbar
-        """
-        self.send_progress('Progress', 0, 'Starting ...')
-
-    def stop_progress(self):
-        """
-        - only used by indeterminate progressbar
-        """
-        self.send_progress('Progress', 100, 'Starting ...')
-
-    def send_progress(self, topic, progress, description):
-        """
-        - called by the task thread
-        """
-        self.progEvent.set_progress(topic, progress, description)
-
-    def get_latest_model(self):
-        """
-        - for easy consumption of client objects as arg
-        """
-        self.update_model()
-        return types.SimpleNamespace(**self.model)
-
-    def await_task(self, wait_ms=100):
-        self.progUI.poll(wait_ms)
-        if self.toBlockWhileAwait:
-            self.taskThread.join()
-            self.on_task_done()
-
-    #
-    # callbacks
-    #
-    def on_open_help(self):
-        """
-        - open help doc, e.g., webpage, local file
-        - subclass this for your own 
-        """
-        self.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
-
-    def on_open_diagnostics(self):
-        """
-        - open log or app session data is hard to generalize
-        - subclass this to use app-level logging scheme
-        - e.g., opening a log file using the default browser
-        - e.g., opening a folder containing the entire diagnostics
-        """
-        self.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
-
-    def on_report_issue(self):
-        """
-        - report bug to the developer
-        - subclass this
-        """
-        self.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
-
-    def on_reset(self):
-        """
-        - reset all form fields to default
-        - usually can be used as is, no need to override
-        """
-        self.form.reset_entries()
-
-    def on_submit(self, event=None):
-        """
-        - main action to launch the background task
-        - usually can be used as is, no need to override
-        """
-        if self.taskThread and self.taskThread.is_alive():
-            return
-        if not self.validate_form():
-            return
-        self.update_model()
-        self.abortEvent.clear()
-        if self.progUI:
-            self.progUI.init()
-        # lambda wrapper ensures "self" is captured by threading as a context
-        # otherwise ui thread still blocks
-        self.taskThread = threading.Thread(target=self.run_task, daemon=True)
-        self.taskThread.start()
-        self.await_task(33)
-
-    def run_task(self):
-        """
-        - override this in app
-        - run actual task synchronously, no need to spawn thread
-        """
-        raise NotImplementedError('subclass this!')
-
-    def on_task_done(self):
-        """
-        - app-land callback (ui thread) called when task is done
-        - must override this in app
-        """
-        raise NotImplementedError('subclass this!')
-
-    def on_cancel(self, event=None):
-        """
-        - cancelling a running background task
-        """
-        if self.taskThread and self.taskThread.is_alive():
-            self.abortEvent.set()
-
-    def on_quit(self, event=None):
-        """
-        CAUTION:
-        - usually we avoid direct view-ops in controller
-        - but here it is necessary for sharing binding between menu, x-button, and other quitting devi
-        """
-        if not self.on_shutdown():
-            # user cancelled
-            return
-        self.form.master.quit()
-
-    def on_startup(self):
-        """
-        - called just before showing root window (<Map>, on_activate()), after all fields are initialized
-        - so that fields can be used here for the first time
-        """
-        pass
-
-    def on_shutdown(self) -> bool:
-        """
-        - called just before quitting
-        - safely schedules shutdown with prompt and early-outs if user cancels
-        - subclass this for post-ops
-        """
-        if not self.taskThread or not self.taskThread.is_alive():
-            # task not running, safe to continue to quit
-            self.abortEvent.set()  # progressbar needs to be stopped
-            return True
-        prompt = Prompt()
-        # Make default behavior a safe bet
-        if prompt.warning('Quitting a running task may cause damage. Click Yes to wait for it to finish, or No to force-quit', 'Wait for it to finish.', question='Keep waiting?', confirm=True):
-            # user decided to wait
-            return False
-        self.abortEvent.set()  # progressbar needs to be stopped
-        # task should have received stop event, let's wait for it to end
-        # it may choose a safe-quit path, but maybe not (damage)
-        return True
-
-    def on_activate(self, event=None):
-        """
-        - binding of <Map> event as logical initialization
-        - called once when the root window displays, i.e., from background to foregrounded
-        """
-        pass
-
-    def on_deactivate(self, event=None):
-        """
-        - binding of <Destroy> event as logical termination
-        - called AFTER triggering WM_DELETE_WINDOW
-        - called once when the root window disappears, from foreground to background
-        - on macOS: called on Cmd+Q key-combo, which quits python launcher and bypasses WM_DELETE_WINDOW
-        """
-        if util.PLATFORM == 'Darwin':
-            self.on_quit()
-
-    def info(self, msg, confirm=True):
-        self.form.prompt.info(msg, confirm)
-
-    def warning(self, detail, advice, question='Continue?', confirm=True):
-        return self.form.prompt.warning(detail, advice, question, confirm)
-
-    def error(self, errclass, detail, advice, confirm=True):
-        return self.form.prompt.error(errclass, detail, advice, confirm)
 
 
 class FormActionBar(ttk.Frame):
@@ -2065,6 +1843,490 @@ class DragNDropTreeview(ttk.Treeview):
         pass
 
 
+class DropPaneBase(ttk.LabelFrame):
+    """
+    - tkinter.dnd-based drop-zone prototype for in-app item drag-n-drop
+    - must derive this class to implement the actual drag-n-drop logic
+    - dnd_start must have been called from another widget
+    """
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(master)
+
+    def dnd_accept(self, source, event):
+        raise NotImplementedError('subclass this!')
+
+    def dnd_enter(self, source, event):
+        """
+        - mouse enters the drop zone while being held down
+        - app can show a visual cue to indicate inside drop zone, e.g.,
+          - self.canvas.configure(cursor='target')
+        """
+        raise NotImplementedError('subclass this!')
+
+    def dnd_leave(self, source, event):
+        """
+        - mouse exits the drop zone while being held down
+        - app can show a visual cue to indicate outside of drop zone, e.g.,
+          - self.canvas.configure(cursor='hand2')
+        """
+        raise NotImplementedError('subclass this!')
+
+    def dnd_motion(self, source, event):
+        """
+        - mouse moves over the drop zone while being held down
+        - app can update data coords if the moving path matters, e.g., scribble apps
+        """
+        raise NotImplementedError('subclass this!')
+
+    def dnd_commit(self, source, event):
+        """
+        - mouse released over the drop zone, i.e., end of drag-n-drop
+        - app should detect a hit with available views, e.g.,
+          - target = self.canvas.winfo_containing(event.x_root, event.y_root)
+          - if target in [self.canvas, self.canvas2]: ...
+        """
+        raise NotImplementedError('subclass this!')
+
+
+class PropertyPane(ttk.LabelFrame):
+    def __init__(self, master, controller, logger=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.controller = controller
+        self.logger = logger or util.glogger
+        # layout
+        self.configure(padding=[5, 5])
+        # lazy styling
+        self.notebook = ttk.Notebook(self, style='TNotebook')
+        self.notebook.pack(fill="both", expand=True, padx=0, pady=0)
+
+        # Initialize entries for properties and settings
+        self.propEntries = {}
+        self.settingEntries = {}
+
+        # Properties page
+        self.prop_frm = ttk.Frame(self.notebook)
+        self.notebook.add(self.prop_frm, text="Properties")
+        self._setup_search_and_entries(self.prop_frm, "prop")
+
+        # Settings page
+        self.stts_frm = ttk.Frame(self.notebook)
+        self.notebook.add(self.stts_frm, text="Settings")
+        self._setup_search_and_entries(self.stts_frm, "stts")
+
+        # Initialize entries
+        self.initialize_entries()
+
+    def _setup_search_and_entries(self, parent_frame, prefix):
+        """Helper method to set up search bar and entry groups for a notebook page."""
+        # Search bar
+        search_entry = ttk.Entry(parent_frame)
+        search_entry.pack(side="top", fill="x", padx=5, pady=5)
+        search_entry.bind("<KeyRelease>", lambda event, p=prefix: self.filter_entries(event, p))
+
+        # Scrollable frame for entries
+        scroll_frm = ScrollFrame(parent_frame)
+        scroll_frm.pack(side="top", fill="both", expand=True)
+
+        # Store references for later use
+        if prefix == "prop":
+            self.prop_search_entry = search_entry
+            self.prop_grp_frm = scroll_frm
+        elif prefix == "stts":
+            self.stts_search_entry = search_entry
+            self.stts_grp_frm = scroll_frm
+
+    def initialize_entries(self):
+        """Initialize property and setting entries."""
+        grp_prop_map = self.controller.dump_model()
+        if grp_prop_map:  # avoid freezing
+            self.propEntries = self.generate_entry_groups(self.prop_grp_frm, grp_prop_map)
+
+        grp_stts_map = self.controller.dump_settings()
+        if grp_stts_map:  # avoid freezing
+            self.settingEntries = self.generate_entry_groups(self.stts_grp_frm, grp_stts_map)
+
+    def generate_entry_groups(self, master, group_prop_map):
+        entries = {}
+        for grp, props in group_prop_map.items():
+            grp_frm = ttk.LabelFrame(master.frame, text=grp)
+            grp_frm.pack(fill="both", expand=True, padx=5, pady=5)
+            for key, prop in props.items():
+                prop_entry = self.generate_entry(grp_frm, key, prop)
+                entries[key] = prop_entry
+                prop_entry.layout()
+            # add a horizontal spacer
+            ttk.Frame(master.frame, height=20).pack(fill="x", expand=True)
+        # Explicitly update the scroll region after adding all widgets
+        master.update_scrollregion()
+        return entries
+
+    def generate_entry(self, group_frame, key, prop):
+        entry = None
+        match prop.get('type'):
+            case 'bool':
+                entry = BoolEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
+            case 'int':
+                entry = IntEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop.get('step') or 1)
+            case 'float':
+                entry = FloatEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop.get('step') or 0.1, prop['precision'])
+            case 'str':
+                entry = TextEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
+            case 'option':
+                opt_cls = MultiOptionEntry if isinstance(prop['default'], (list, tuple)) else SingleOptionEntry
+                entry = opt_cls(group_frame, key, prop['title'], prop['range'], prop['default'], prop['help'])
+            case s if s.startswith('list'):
+                entry = ListEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
+            case 'file':
+                entry = FileEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop.get('range') or [('All Files', '*')], prop['startDir'])
+            case 'folder':
+                entry = FolderEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['startDir'])
+            case _:
+                raise ValueError(f"Unknown property type: {prop['type']}")
+        return entry
+
+    def filter_entries(self, event, prefix):
+        """Filter entries based on the search keyword."""
+        if prefix == "prop":
+            search_entry = self.prop_search_entry
+            entries = self.propEntries
+            scroll_frm = self.prop_grp_frm
+        elif prefix == "stts":
+            search_entry = self.stts_search_entry
+            entries = self.settingEntries
+            scroll_frm = self.stts_grp_frm
+        else:
+            return
+
+        keyword = search_entry.get().strip().lower()
+        if not keyword:
+            # If the keyword is empty, show all entries and groups
+            for group_frame in scroll_frm.frame.winfo_children():
+                if not isinstance(group_frame, ttk.LabelFrame):
+                    continue
+                group_frame.pack(fill="both", expand=True, padx=5, pady=5)
+                for entry in group_frame.winfo_children():
+                    if not isinstance(entry, Entry):
+                        continue
+                    entry.layout()
+            scroll_frm.update()
+            return
+
+        # Hide all groups and entries first
+        for group_frame in scroll_frm.frame.winfo_children():
+            if isinstance(group_frame, ttk.LabelFrame):
+                group_frame.pack_forget()
+
+        # Show only groups that have at least one matching entry
+        for group_frame in scroll_frm.frame.winfo_children():
+            if isinstance(group_frame, ttk.LabelFrame):
+                group_has_match = False
+                for entry in group_frame.winfo_children():
+                    if isinstance(entry, Entry) and keyword in entry.text.lower():
+                        group_has_match = True
+                        entry.layout()
+                    elif isinstance(entry, Entry):
+                        entry.pack_forget()
+                if group_has_match:
+                    group_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+        scroll_frm.update()
+
+    def update(self, model):
+        focus_keys = model.get_focus_keys()
+        first_focus = focus_keys[0] if focus_keys else None
+        if not first_focus:
+            return
+        for key, value in model.get(first_focus).items():
+            if key not in self.propEntries:
+                continue
+            self.propEntries[key].set_data(value)
+
+# endregion
+
+
+# region controller
+
+class ControllerBase:
+    """
+    - variant of MVVM design pattern
+    """
+    def __init__(self, model, settings=None):
+        self.picker = None
+        self.listeners = {}
+        self.model = model
+        self.settings = settings
+
+    def bind_picker(self, picker):
+        self.picker = picker
+
+    def add_listener(self, key, listener):
+        self.listeners[key] = listener
+
+    def notify(self, message):
+        for listeners in self.listeners.values():
+            listeners.on_notify(message)
+
+    #
+    # event handlers
+    #
+    def on_startup(self):
+        """
+        - called just before showing root window (<Map>, on_activate()), after all fields are initialized
+        - so that fields can be used here for the first time
+        """
+        pass
+
+    def on_activate(self, event=None):
+        """
+        - binding of <Map> event as logical initialization
+        - called once when the root window displays, i.e., from background to foregrounded
+        """
+        pass
+
+    def on_quit(self, event=None):
+        """
+        CAUTION:
+        - usually we avoid direct view-ops in controller
+        - but here it is necessary for sharing binding between menu, x-button, and other quitting devi
+        """
+        if not self.on_shutdown():
+            # user cancelled
+            return
+        if self.settings:
+            self.settings.save()
+        self.picker.winfo_toplevel().quit()
+
+    def on_shutdown(self) -> bool:
+        """
+        - called just before quitting
+        - safely schedules shutdown with prompt and early-outs if user cancels
+        - subclass this for post-ops
+        """
+        prompt = Prompt()
+        # Make default behavior a safe bet
+        if prompt.warning('Quitting: You may lose unsaved data and all progress. Click Yes to wait, or No to force-quit', 'Verify first.', question='Keep waiting?', confirm=True):
+            # user decided to wait
+            return False
+        return True
+
+    def on_deactivate(self, event=None):
+        """
+        - binding of <Destroy> event as logical termination
+        - called AFTER triggering WM_DELETE_WINDOW
+        - called once when the root window disappears, from foreground to background
+        - on macOS: called on Cmd+Q key-combo, which quits python launcher and bypasses WM_DELETE_WINDOW
+        """
+        if util.PLATFORM == 'Darwin':
+            self.on_quit()
+
+
+class FormController(ControllerBase):
+    """
+    - observe all entries and update model
+    - both form and realtime apps can use this class
+    - form apps can use submit() to update model
+    - realtime apps can set arg-tracers
+    - model and app-config share the same keys
+    - backend task works in task thread
+    - progressbar and task synchronize via threading.Event
+    """
+
+    def __init__(self, form=None, model=None, to_block=True):
+        super().__init__(model, None)
+        self.bind_picker(form)
+        self.taskThread = None
+        self.progUI = None
+        self.progEvent = Globals.progEvent
+        self.abortEvent = Globals.abortEvent
+        self.toBlockWhileAwait = to_block
+
+    def validate_form(self):
+        return self.picker.validate_entries()
+
+    def update_model(self):
+        config_by_page = {
+            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children()}
+            for title, pg in self.picker.pages.items()
+        }
+        self.model = {k: v for entries in config_by_page.values() for k, v in entries.items()}
+
+    def update_view(self):
+        self.load_preset(self.model)
+
+    def load_preset(self, preset):
+        """
+        - model includes input and config
+        - input is runtime data that changes with each run
+        - only config will be saved/loaded as preset
+        """
+        config = util.load_json(preset) if isinstance(preset, str) else preset
+        for title, page in self.picker.pages.items():
+            for entry in page.winfo_children():
+                try:
+                    entry.set_data(config[entry.key])
+                except KeyError as e:
+                    util.glogger.error(f'{entry.key=}, {entry.data.get()=}, {self.model=}: {e}')
+                except Exception as e:
+                    util.glogger.error(f'{entry.key=}, {entry.data.get()=}, {self.model=}: {e}')
+
+    def save_preset(self, preset):
+        """
+        - only config is saved
+        - input always belongs to group "input"
+        - in app-config, if user specifies title, then the title is used with presets (titlecase) instead of the original key (lowercase)
+        """
+        config_by_page = {
+            pg.get_title(): {entry.key: entry.get_data() for entry in pg.winfo_children() if entry.isPresetable}
+            for title, pg in self.picker.pages.items()
+        }
+        config = {k: v for entries in config_by_page.values() for k, v in entries.items()}
+        util.save_json(preset, config)
+
+    def is_scheduled_to_stop(self):
+        return self.abortEvent.is_set()
+
+    def bind_progress(self, prog_ui):
+        self.progUI = prog_ui
+
+    def start_progress(self):
+        """
+        - only used by indeterminate progressbar
+        """
+        self.send_progress('Progress', 0, 'Starting ...')
+
+    def stop_progress(self):
+        """
+        - only used by indeterminate progressbar
+        """
+        self.send_progress('Progress', 100, 'Starting ...')
+
+    def send_progress(self, topic, progress, description):
+        """
+        - called by the task thread
+        """
+        self.progEvent.set_progress(topic, progress, description)
+
+    def get_latest_model(self):
+        """
+        - for easy consumption of client objects as arg
+        """
+        self.update_model()
+        return types.SimpleNamespace(**self.model)
+
+    def await_task(self, wait_ms=100):
+        self.progUI.poll(wait_ms)
+        if self.toBlockWhileAwait:
+            self.taskThread.join()
+            self.on_task_done()
+
+    #
+    # callbacks
+    #
+    def on_open_help(self):
+        """
+        - open help doc, e.g., webpage, local file
+        - subclass this for your own
+        """
+        self.info('Help not implemented yet; implement it in controller subclasses', confirm=True)
+
+    def on_open_diagnostics(self):
+        """
+        - open log or app session data is hard to generalize
+        - subclass this to use app-level logging scheme
+        - e.g., opening a log file using the default browser
+        - e.g., opening a folder containing the entire diagnostics
+        """
+        self.info('Logging not implemented yet; implement it in controller subclasses', confirm=True)
+
+    def on_report_issue(self):
+        """
+        - report bug to the developer
+        - subclass this
+        """
+        self.info('Bug reporting not implemented yet; implement it in controller subclasses', confirm=True)
+
+    def on_reset(self):
+        """
+        - reset all form fields to default
+        - usually can be used as is, no need to override
+        """
+        self.picker.reset_entries()
+
+    def on_submit(self, event=None):
+        """
+        - main action to launch the background task
+        - usually can be used as is, no need to override
+        """
+        if self.taskThread and self.taskThread.is_alive():
+            return
+        if not self.validate_form():
+            return
+        self.update_model()
+        self.abortEvent.clear()
+        if self.progUI:
+            self.progUI.init()
+        # lambda wrapper ensures "self" is captured by threading as a context
+        # otherwise ui thread still blocks
+        self.taskThread = threading.Thread(target=self.run_task, daemon=True)
+        self.taskThread.start()
+        self.await_task(33)
+
+    def run_task(self):
+        """
+        - override this in app
+        - run actual task synchronously, no need to spawn thread
+        """
+        raise NotImplementedError('subclass this!')
+
+    def on_task_done(self):
+        """
+        - app-land callback (ui thread) called when task is done
+        - must override this in app
+        """
+        raise NotImplementedError('subclass this!')
+
+    def on_cancel(self, event=None):
+        """
+        - cancelling a running background task
+        """
+        if self.taskThread and self.taskThread.is_alive():
+            self.abortEvent.set()
+
+    def on_startup(self):
+        """
+        - called just before showing root window (<Map>, on_activate()), after all fields are initialized
+        - so that fields can be used here for the first time
+        """
+        pass
+
+    def on_shutdown(self) -> bool:
+        """
+        - called just before quitting
+        - safely schedules shutdown with prompt and early-outs if user cancels
+        - subclass this for post-ops
+        """
+        if not self.taskThread or not self.taskThread.is_alive():
+            # task not running, safe to continue to quit
+            self.abortEvent.set()  # progressbar needs to be stopped
+            return True
+        if not super().on_shutdown():
+            # user cancelled
+            return False
+        self.abortEvent.set()  # progressbar needs to be stopped
+        # task should have received stop event, let's wait for it to end
+        # it may choose a safe-quit path, but maybe not (damage)
+        return True
+
+    def info(self, msg, confirm=True):
+        self.picker.prompt.info(msg, confirm)
+
+    def warning(self, detail, advice, question='Continue?', confirm=True):
+        return self.picker.prompt.warning(detail, advice, question, confirm)
+
+    def error(self, errclass, detail, advice, confirm=True):
+        return self.picker.prompt.error(errclass, detail, advice, confirm)
+
+
 class TreeControllerBase:
     def __init__(self, model, settings, logger=None):
         self.picker = None
@@ -2126,10 +2388,10 @@ class TreeControllerBase:
         """
         - save model into a JSON of group-prop pairs
         """
-        return self.model.dump()
+        return self.model.adapt_to_view()
 
     def dump_settings(self):
-        return self.settings.dump()
+        return self.settings.adapt_to_view()
 
     # event handlers
     def on_help(self):
@@ -2253,36 +2515,98 @@ class TreeControllerBase:
         self.picker.focus_on(first_root)
         self.model.focus_on([first_root])
         self.notify(self.model)
+# endregion
 
 
+# region models
 
-class TreeModelBase:
-    def __init__(self, logger=None):
-        self.logger = logger or util.glogger
-        self.data = collections.OrderedDict({})
+class ModelBase:
+    def __init__(self, path=None):
+        self.path = path
+        self.data = self.load(path) if path and osp.isfile(path) else collections.OrderedDict({})
+
+    def load(self, path=None):
+        raise NotImplementedError('subclass this!')
+
+    def save(self, path=None):
+        raise NotImplementedError('subclass this!')
+
+    def adapt_to_view(self):
+        raise NotImplementedError('subclass this!')
+
+    def set_dirty(self, dirty=True):
+        raise NotImplementedError('subclass this!')
+
+    def is_dirty(self):
+        raise NotImplementedError('subclass this!')
+
+    def get(self, key):
+        raise NotImplementedError('subclass this!')
+
+
+class SettingsModelBase(ModelBase):
+    """
+    - data is a dict with flat key-value pairs, e.g.:
+      - {key: {title, default, help, tags, value, group}, ...}
+      - title: field label
+      - default: default value
+      - help: user doc
+      - tags: list of tags as heuristics for app
+      - value: actual value
+      - group: section title to group fields
+    """
+    stdKeys = ['name', 'title', 'default', 'value', 'help', 'tags', 'value', 'group']
+    def __init__(self, path=None):
+        super().__init__(path)
+
+    def save(self, path=None):
+        path = path or self.path
+        util.save_json(self.path, self.data)
+        self.path = path
+        return True
+
+    def load(self, path=None):
+        path = path or self.path
+        assert osp.isfile(path), f'Missing settings file: {path}'
+        self.data = util.load_json(path)
+        self.path = path
+        return True
+
+    def adapt_to_view(self):
+        return {grp: {key: prop for key, prop in self.data.items() if prop['group'] == grp} for grp in set(prop['group'] for prop in self.data.values())}
+
+
+class TreeModelBase(ModelBase):
+    def __init__(self, path=None):
+        super().__init__(path)
         self.focusKeys = []
         self.isDirty = False
+        self.path = None
 
-    def load(self, path, force_load=False):
+    def load(self, path=None):
         """
         - by default, protect dirty data from being overwritten
         """
-        if not force_load and self.isDirty:
+        if self.isDirty:
             return False
+        path = path or self.path
+        assert osp.isfile(path), f'Missing tree model file: {path}'
         self.data = util.load_json(path)
         return True
 
-    def save(self, path, force_save=True):
+    def save(self, path=None):
         """
         - by default, minimize risk of data loss by force-saving
         - to optimize, maintain the dirty state carefully at app level
         """
-        if not force_save and not self.isDirty:
+        if not self.isDirty:
             return False
+        path = path or self.path
         util.save_json(path, self.data)
+        self.path = path
         return True
 
-    def dump(self):
+    def adapt_to_view(self):
         """
         - regroup data into a group-prop pairs for property pane
         """
@@ -2325,132 +2649,5 @@ class TreeModelBase:
         - implementation depends on data structure of subclass
         """
         raise NotImplementedError('subclass this!')
-
-
-class DropPaneBase(ttk.LabelFrame):
-    """
-    - tkinter.dnd-based drop-zone prototype for in-app item drag-n-drop
-    - must derive this class to implement the actual drag-n-drop logic
-    - dnd_start must have been called from another widget
-    """
-    def __init__(self, master, *args, **kwargs):
-        super().__init__(master)
-
-    def dnd_accept(self, source, event):
-        raise NotImplementedError('subclass this!')
-
-    def dnd_enter(self, source, event):
-        """
-        - mouse enters the drop zone while being held down
-        - app can show a visual cue to indicate inside drop zone, e.g.,
-          - self.canvas.configure(cursor='target')
-        """
-        raise NotImplementedError('subclass this!')
-
-    def dnd_leave(self, source, event):
-        """
-        - mouse exits the drop zone while being held down
-        - app can show a visual cue to indicate outside of drop zone, e.g.,
-          - self.canvas.configure(cursor='hand2')
-        """
-        raise NotImplementedError('subclass this!')
-
-    def dnd_motion(self, source, event):
-        """
-        - mouse moves over the drop zone while being held down
-        - app can update data coords if the moving path matters, e.g., scribble apps
-        """
-        raise NotImplementedError('subclass this!')
-
-    def dnd_commit(self, source, event):
-        """
-        - mouse released over the drop zone, i.e., end of drag-n-drop
-        - app should detect a hit with available views, e.g.,
-          - target = self.canvas.winfo_containing(event.x_root, event.y_root)
-          - if target in [self.canvas, self.canvas2]: ...
-        """
-        raise NotImplementedError('subclass this!')
-
-
-class PropertyPane(ttk.LabelFrame):
-    def __init__(self, master, controller, logger=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.controller = controller
-        self.logger = logger or util.glogger
-        # layout
-        self.configure(padding=[5, 5])
-        # lazy styling
-        self.notebook = ttk.Notebook(self, style='TNotebook')
-        self.notebook.pack(fill="both", expand=True, padx=0, pady=0)
-        self.propEntries = {}
-        self.settingEntries = {}
-        # properties
-        prop_frm = ttk.Frame(self.notebook)
-        self.notebook.add(prop_frm, text="Properties")
-        grp_prop_map = self.controller.dump_model()
-        if grp_prop_map:  # avoid freezing
-            prop_nav_combobox = ttk.Combobox(prop_frm, values=list(grp_prop_map.keys()))
-            prop_nav_combobox.pack(side="top", expand=False)
-            self.prop_grp_frm = ScrollFrame(prop_frm)
-            self.prop_grp_frm.pack(side="top", fill="both", expand=True)
-            self.propEntries = self.generate_entry_groups(self.prop_grp_frm, grp_prop_map)
-        # global settings
-        stts_frm = ttk.Frame(self.notebook)
-        self.notebook.add(stts_frm, text="Settings")
-        grp_stts_map = self.controller.dump_settings()
-        if grp_stts_map:  # avoid freezing
-            stts_nav_combobox = ttk.Combobox(stts_frm, values=list(grp_stts_map.keys()))
-            stts_nav_combobox.pack(side="top", expand=False)
-            self.stts_grp_frm = ScrollFrame(stts_frm)
-            self.stts_grp_frm.pack(side="top", fill="both", expand=True)
-            self.settingEntries = self.generate_entry_groups(self.stts_grp_frm, grp_stts_map)
-
-    def generate_entry_groups(self, master, group_prop_map):
-        entries = {}
-        for grp, props in group_prop_map.items():
-            grp_frm = ttk.LabelFrame(master.frame, text=grp)  # Use master.frame for ScrollFrame
-            grp_frm.pack(fill="both", expand=True, padx=5, pady=5)  # Ensure proper packing
-            for key, prop in props.items():
-                prop_entry = self.generate_entry(grp_frm, key, prop)
-                entries[key] = prop_entry
-                prop_entry.layout()
-            # add a horizontal spacer
-            ttk.Frame(master.frame, height=5).pack(fill="x", expand=True)
-        # Explicitly update the scroll region after adding all widgets
-        master.update_scrollregion()
-        return entries
-
-    def generate_entry(self, group_frame, key, prop):
-        entry = None
-        match prop.get('type'):
-            case 'bool':
-                entry = BoolEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
-            case 'int':
-                entry = IntEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop['step'])
-            case 'float':
-                entry = FloatEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop['step'], prop['precision'])
-            case 'str':
-                entry = TextEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
-            case 'option':
-                entry = OptionEntry(group_frame, key, prop['title'], prop['options'], prop['default'], prop['help'])
-            case s if s.startswith('list'):
-                entry = ListEntry(group_frame, key, prop['title'], prop['default'], prop['help'])
-            case 'file':
-                entry = FileEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['range'], prop['startDir'])
-            case 'folder':
-                entry = FolderEntry(group_frame, key, prop['title'], prop['default'], prop['help'], True, prop['startDir'])
-            case _:
-                raise ValueError(f"Unknown property type: {prop['type']}")
-        return entry
-
-    def update(self, model):
-        focus_keys = model.get_focus_keys()
-        first_focus = focus_keys[0] if focus_keys else None
-        if not first_focus:
-            return
-        for key, value in model.get(first_focus).items():
-            if key not in self.propEntries:
-                continue
-            self.propEntries[key].set_data(value)
 
 # endregion
