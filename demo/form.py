@@ -12,6 +12,7 @@ with builtin support for:
 import json
 import os.path as osp
 import sys
+import threading
 import time
 
 # project
@@ -24,6 +25,7 @@ import kkpyutil as util
 class Controller(ui.FormController):
     def __init__(self, model=None, settings=None):
         super().__init__(model, settings)
+        self._task_complete = threading.Event()  # Thread completion event
 
     def on_open_help(self):
         self.info('Dev: Just use it! Trust yourself and the log!')
@@ -42,18 +44,12 @@ class Controller(ui.FormController):
         - run in background thread to avoid blocking UI
         - do not run anything bound to tkinter widgets (main thread) here
         """
-        try:
-            for p in range(101):
-                if self.is_scheduled_to_stop():
-                    self.stop_progress()
-                    return
-                # Simulate a task
-                time.sleep(0.01)
-                self.send_progress('/processing', p, f'Processing ... {p}%')
-            # Signal completion
-            self.send_progress('/complete', 100, 'Task completed')
-        except Exception as e:
-            self.send_progress('/error', 0, f'Error: {str(e)}')
+        self.progPrompt.init()
+        for p in range(101):
+            if self.is_scheduled_to_stop():
+                break
+            time.sleep(0.01)
+            self.send_progress('progress', p, f'Processing... {p}%')
 
     def on_task_done(self):
         out = vars(self.get_latest_model())

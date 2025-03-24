@@ -804,13 +804,13 @@ class ProgressBar(WaitBar):
         # self.prog.set(100)
 
     def receive_progress(self, topic: str, progress: int, description: str = '...'):
-        # print(f'receiving progress ... {topic=}, {progress=}, {description=}')
         self.prog.set(progress)
         self.desc.set(description)
         self.update_idletasks()
         self.progEvent.clear()
-        if progress >= 100:
-            self.abortEvent.set()
+
+    def reset(self):
+        self.prog.set(0)
 
 
 class ProgressPrompt:
@@ -2228,11 +2228,24 @@ class FormController(ControllerBase):
         return types.SimpleNamespace(**self.model)
 
     def await_task(self, wait_ms=100):
-        if self.progPrompt:
-            self.progPrompt.poll(wait_ms)
-            # After polling, check if task is complete
-        if not self.taskThread and not self.taskThread.is_alive() :
+        def _check_completion():
+            # Task still running, keep polling
+            if not self.progEvent.is_set():
+                self.progPrompt.master.after(wait_ms, _check_completion)
+                return
+            self.progPrompt.receive_progress(
+                self.progEvent.topic,
+                self.progEvent.progress,
+                self.progEvent.description
+            )
+            prog = self.progEvent.progress
+            self.progEvent.clear()
+            if prog < 100:
+                self.progPrompt.master.after(wait_ms, _check_completion)
+                return
+            # Task completed
             self.on_task_done()
+        _check_completion()
 
     #
     # callbacks
@@ -2278,14 +2291,16 @@ class FormController(ControllerBase):
             return
         self.update_model()
         self.abortEvent.clear()
+        # Reset progress bar
         if self.progPrompt:
             self.progPrompt.init()
         # lambda wrapper ensures "self" is captured by threading as a context
         # otherwise ui thread still blocks
+        # Start task
         self.taskThread = threading.Thread(target=self.run_task, daemon=True)
         self.taskThread.start()
+        # Start completion monitoring
         self.await_task(33)
-        self.on_task_done()
 
     def run_task(self):
         """
