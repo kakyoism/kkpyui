@@ -35,8 +35,8 @@ class Controller(ui.FormController):
       - kk OSClisten gilisten, "/quit", "i", gkquit
     """
 
-    def __init__(self, model=None, settings=None, to_block=False):
-        super().__init__(model, settings, to_block)
+    def __init__(self, model=None, settings=None):
+        super().__init__(model, settings)
         self.sender = osc_client.SimpleUDPClient('127.0.0.1', 10000)
         self.playing = False
         self.curEngine = None
@@ -106,7 +106,7 @@ class Controller(ui.FormController):
 
 def main():
     # ensure progressbar should not block while waiting
-    ctrlr = Controller(None, None, False)
+    ctrlr = Controller(None, None)
     root = ui.FormRoot('Controller Demo: Oscillator', ctrlr, (800, 600), osp.join(osp.dirname(__file__), 'controller', 'icon.png'))
     ui.init_style()
     form = ui.Form(root, ['general', 'output'])

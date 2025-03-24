@@ -663,17 +663,17 @@ class FormActionBar(ttk.Frame):
         self.controller = controller
         # occupy the entire width
         # new buttons will be added to the right
-        self.resetBtn = ttk.Button(self, text="Reset", command=self.on_reset)
-        self.separator = ttk.Separator(self, orient="horizontal")
+        reset_btn = ttk.Button(self, text="Reset", command=self.on_reset)
+        separator = ttk.Separator(self, orient="horizontal")
         # Create Cancel and Submit buttons
-        self.cancelBtn = ttk.Button(self, text="Stop", command=self.on_cancel)
-        self.submitBtn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2', style='Primary.TButton')
+        cancel_btn = ttk.Button(self, text="Stop", command=self.on_cancel)
+        submit_btn = ttk.Button(self, text="Start", command=self.on_submit, cursor='hand2', style='Primary.TButton')
         # layout: keep the order
-        self.separator.pack(fill="x")
+        separator.pack(fill="x")
         # left-most must pack after separator to avoid occluding the border
-        self.resetBtn.pack(side="left", padx=10, pady=5)
-        self.submitBtn.pack(side="right", padx=10, pady=10)
-        self.cancelBtn.pack(side="right", padx=10, pady=10)
+        reset_btn.pack(side="left", padx=10, pady=5)
+        submit_btn.pack(side="right", padx=10, pady=10)
+        cancel_btn.pack(side="right", padx=10, pady=10)
         self.layout()
 
     def layout(self):
@@ -2062,11 +2062,12 @@ class ControllerBase:
     """
     - variant of MVVM design pattern
     """
-    def __init__(self, model, settings=None):
+    def __init__(self, model, settings=None, logger=None):
         self.picker = None
         self.listeners = {}
         self.model = model
         self.settings = settings
+        self.logger = logger or util.glogger
 
     def bind_picker(self, picker):
         self.picker = picker
@@ -2116,7 +2117,7 @@ class ControllerBase:
         """
         prompt = Prompt(self.picker or list(self.listeners.values())[0])
         # Make default behavior a safe bet
-        if prompt.warning('Quitting: You may lose unsaved data and all progress. Click Yes to wait, or No to force-quit', 'Verify first.', question='Keep waiting?', confirm=True):
+        if prompt.warning('Quitting: You may lose unsaved data and all progress. Click Yes to stay, or No to force-quit', 'Verify first.', question='Stay?', confirm=True):
             # user decided to wait
             return False
         return True
@@ -2142,16 +2143,16 @@ class FormController(ControllerBase):
     - model and app-config share the same keys
     - backend task works in task thread
     - progressbar and task synchronize via threading.Event
+    - ui is blocked while waiting for task to finish
     - app must bind picker/views explicitly
     """
 
-    def __init__(self, model=None, settings=None, to_block=True):
-        super().__init__(model, settings)
+    def __init__(self, model=None, settings=None, logger=None):
+        super().__init__(model, settings, logger)
         self.taskThread = None
-        self.progUI = None
+        self.progPrompt = None
         self.progEvent = Globals.progEvent
         self.abortEvent = Globals.abortEvent
-        self.toBlockWhileAwait = to_block
 
     def validate_form(self):
         return self.picker.validate_entries()
@@ -2199,7 +2200,7 @@ class FormController(ControllerBase):
         return self.abortEvent.is_set()
 
     def bind_progress(self, prog_ui):
-        self.progUI = prog_ui
+        self.progPrompt = prog_ui
 
     def start_progress(self):
         """
@@ -2227,9 +2228,10 @@ class FormController(ControllerBase):
         return types.SimpleNamespace(**self.model)
 
     def await_task(self, wait_ms=100):
-        self.progUI.poll(wait_ms)
-        if self.toBlockWhileAwait:
-            self.taskThread.join()
+        if self.progPrompt:
+            self.progPrompt.poll(wait_ms)
+            # After polling, check if task is complete
+        if not self.taskThread and not self.taskThread.is_alive() :
             self.on_task_done()
 
     #
@@ -2276,18 +2278,20 @@ class FormController(ControllerBase):
             return
         self.update_model()
         self.abortEvent.clear()
-        if self.progUI:
-            self.progUI.init()
+        if self.progPrompt:
+            self.progPrompt.init()
         # lambda wrapper ensures "self" is captured by threading as a context
         # otherwise ui thread still blocks
         self.taskThread = threading.Thread(target=self.run_task, daemon=True)
         self.taskThread.start()
         self.await_task(33)
+        self.on_task_done()
 
     def run_task(self):
         """
         - override this in app
-        - run actual task synchronously, no need to spawn thread
+        - threaded function to run in the background
+        - no need for app to create task thread
         """
         raise NotImplementedError('subclass this!')
 
@@ -2296,7 +2300,7 @@ class FormController(ControllerBase):
         - app-land callback (ui thread) called when task is done
         - must override this in app
         """
-        raise NotImplementedError('subclass this!')
+        pass
 
     def on_cancel(self, event=None):
         """
@@ -2340,7 +2344,12 @@ class FormController(ControllerBase):
         return self.picker.prompt.error(errclass, detail, advice, confirm)
 
 
-class TreeControllerBase:
+class LiveController(FormController):
+    def __init__(self, model=None, settings=None, logger=None):
+        super().__init__(model, settings, logger)
+
+
+class TreeControllerBase(ControllerBase):
     def __init__(self, model, settings, logger=None):
         self.picker = None
         self.listeners = {}

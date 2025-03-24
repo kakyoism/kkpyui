@@ -95,12 +95,12 @@ class DemoApp:
     Main application class.
     """
     def __init__(self):
-        # Create the main window
-        self.root = ui.Root("Demo App", (800, 600))
         self.treeModel = DemoTreeModel()
         export_to = osp.abspath(f'{util.get_platform_appdata_dir()}/my_demo_app/settings.json')
         self.settings = Settings(export_to)
         self.controller = DemoTreeController(self.treeModel, self.settings)
+        # Create the main window
+        self.root = ui.Root("Demo App", self.controller, (800, 600))
 
         # Create the TreePane
         self.treePane = ui.TreePane(self.root, "Tree", self.controller)
