@@ -44,7 +44,6 @@ class Controller(ui.FormController):
         - run in background thread to avoid blocking UI
         - do not run anything bound to tkinter widgets (main thread) here
         """
-        self.progPrompt.init()
         for p in range(101):
             if self.is_scheduled_to_stop():
                 break
