@@ -2228,10 +2228,10 @@ class FormController(ControllerBase):
         return types.SimpleNamespace(**self.model)
 
     def await_task(self, wait_ms=100):
-        def _check_completion():
+        def _update_progress_until_completion():
             # Task still running, keep polling
             if not self.progEvent.is_set():
-                self.progPrompt.master.after(wait_ms, _check_completion)
+                self.progPrompt.master.after(wait_ms, _update_progress_until_completion)
                 return
             self.progPrompt.receive_progress(
                 self.progEvent.topic,
@@ -2241,11 +2241,11 @@ class FormController(ControllerBase):
             prog = self.progEvent.progress
             self.progEvent.clear()
             if prog < 100:
-                self.progPrompt.master.after(wait_ms, _check_completion)
+                self.progPrompt.master.after(wait_ms, _update_progress_until_completion)
                 return
             # Task completed
             self.on_task_done()
-        _check_completion()
+        _update_progress_until_completion()
 
     #
     # callbacks
